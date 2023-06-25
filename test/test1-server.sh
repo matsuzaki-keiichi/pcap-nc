@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
 
-../bin/pcap-nc -l 1234 | tee out.pcap
+echo starting server
+../bin/pcap-nc -l 14800 --link-type=spp | tee test-spp-out.pcap
 

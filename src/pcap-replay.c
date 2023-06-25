@@ -34,6 +34,7 @@
 #define ERROR_4 4
 #define ERROR_5 5
 #define ERROR_6 6
+#define ERROR_7 7
 
 // #define DEBUG
 
@@ -140,9 +141,12 @@ int main(int argc, char *argv[])
   ssize_t ret;
 
   ret = force_fread(buf, 1, PCAP_HEADER_SIZE, stdin);
-  if ( ret < PCAP_HEADER_SIZE ) {
-    fprintf(stderr, "File size smaller than the PCAP Header.\n");
+  if ( ret == 0 ) {
+    fprintf(stderr, "No input (missing header).\n");
     return ERROR_1;
+  } else if ( ret < PCAP_HEADER_SIZE ) {
+    fprintf(stderr, "File size smaller than the PCAP Header.\n");
+    return ERROR_2;
   }
 
   const uint32_t magic_number = *(uint32_t*)&(buf[ 0]);
@@ -160,7 +164,7 @@ int main(int argc, char *argv[])
     finetime_unit = 1e-9; exec_bswap = 1;
   } else {
     fprintf(stderr, "File is not a PCAP file (bad magic number).\n");
-    return ERROR_2;
+    return ERROR_3;
   }
 
   const uint32_t major_version = extract_uint16(exec_bswap, buf+4 );
@@ -169,7 +173,7 @@ int main(int argc, char *argv[])
   if ( major_version != PCAP_MAJOR_VERSION || minor_version != PCAP_MINOR_VERSION ) {
     fprintf(stderr, "File is not a PCAP file (unexpected version number=%" PRId16 ".%" PRId16 ").\n",
 	    major_version, minor_version);
-    return ERROR_3;
+    return ERROR_4;
   }
 
   double prev_time = -1;
@@ -178,7 +182,7 @@ int main(int argc, char *argv[])
     ret = force_fread(buf, 1, PACKET_HEADER_SIZE, stdin);
     if ( ret < PACKET_HEADER_SIZE ) {
       fprintf(stderr, "Unexpected end of file (partial packet header).\n");
-      return ERROR_4;
+      return ERROR_5;
     }
     const uint32_t coarse_time = extract_uint32(exec_bswap, buf+ 0);
     const uint32_t fine_time   = extract_uint32(exec_bswap, buf+ 4);
@@ -189,13 +193,13 @@ int main(int argc, char *argv[])
 
     if ( caplen > PACKET_DATA_MAX_SIZE ) {
       fprintf(stderr, "Unexpected packet header (caplen(=%" PRIx32 ") too long).\n", caplen);
-      return ERROR_5;
+      return ERROR_6;
     }
     
     ret = force_fread(&(buf[PACKET_HEADER_SIZE]), 1, caplen, stdin);
     if ( ret < caplen ) {
       fprintf(stderr, "Unexpected end of file (partial packet data).\n");
-      return ERROR_6;
+      return ERROR_7;
     }
 
     network_encode_uint32(buf+ 0, coarse_time);

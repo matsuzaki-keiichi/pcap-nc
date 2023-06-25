@@ -13,7 +13,7 @@ pcap-replay: pcap-replay.c
 	cc -o $@ $^ -lm
 
 write_head: write_head.c
-	cc -o $@ $^ -lm
+	cc -o $@ $^
 
 head-diosatlm.pcap:	write_head
 	./write_head 147 >$@

@@ -1,3 +1,4 @@
 #!/usr/bin/env bash
 
-../bin/pcap-nc 127.0.0.1 1234 < test.pcap >/dev/null
+echo starting client
+../bin/pcap-nc 127.0.0.1 14800 --link-type=spp < test-spp.pcap >/dev/null

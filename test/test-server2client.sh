@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 
-../bin/pcap-nc -l 1234 --after=5 < test.pcap >/dev/null &
+echo starting server
+../bin/pcap-nc -l 14800 --link-type=spp --after=5 < test-spp.pcap >/dev/null &
 sleep 1
-../bin/pcap-nc 127.0.0.1 1234 >out.pcap &
+echo starting client
+../bin/pcap-nc 127.0.0.1 14800 --link-type=spp >test-spp-out.pcap &
 
-tail -f out.pcap
+tail -f test-spp-out.pcap
