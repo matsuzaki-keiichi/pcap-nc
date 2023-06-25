@@ -12,10 +12,11 @@ pcap-replay: pcap-replay.c
 	cc -o $@ $^ -lm
 
 install: all
+	mkdir -p ../bin
 	cp ${ALL} head.pcap ../bin
 
 dist-clean: clean
-	rm -f ../bin/*
+	rm -fr ../bin
 	
 clean:
 	rm -f *~ ${ALL}
