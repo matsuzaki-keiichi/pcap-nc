@@ -4,6 +4,8 @@
 #include <unistd.h>
 // sleep
 #include <stdint.h>
+#include <inttypes.h>
+// PRIx32
 #include <time.h>
 // nanosleep
 #include <math.h>
@@ -18,6 +20,8 @@
 
 #define MAGIC_NUMBER_USEC   0xA1B2C3D4
 #define MAGIC_NUMBER_NSEC   0xA1B23C4D
+#define PCAP_MAJOR_VERSION   2
+#define PCAP_MINOR_VERSION   4
 
 #define READ_RETRY 1 // sec
 #define WRITE_RETRY 1 // sec
@@ -27,6 +31,7 @@
 #define ERROR_3 3
 #define ERROR_4 4
 #define ERROR_5 5
+#define ERROR_6 6
 
 // #define DEBUG
 
@@ -81,6 +86,11 @@ uint32_t extract_uint32(int exec_bswap, void *ptr){
   return (exec_bswap) ? bswap_32(value) : value;
 }
 
+uint16_t extract_uint16(int exec_bswap, void *ptr){
+  const uint16_t value = * (uint16_t*) ptr;
+  return (exec_bswap) ? bswap_16(value) : value;
+}
+
 
 #define OPTSTRING "a"
 
@@ -125,6 +135,7 @@ int main(int argc, char *argv[])
 
   ret = force_fread(buf, 1, PCAP_HEADER_SIZE, stdin);
   if ( ret < PCAP_HEADER_SIZE ) {
+    fprintf(stderr, "File size smaller than the PCAP Header.\n");
     return ERROR_1;
   }
 
@@ -142,7 +153,17 @@ int main(int argc, char *argv[])
   } else if ( magic_number_swap == MAGIC_NUMBER_NSEC ) {
     finetime_unit = 1e-9; exec_bswap = 1;
   } else {
+    fprintf(stderr, "File is not a PCAP file (bad magic number).\n");
     return ERROR_2;
+  }
+
+  const uint32_t major_version = extract_uint16(exec_bswap, buf+4 );
+  const uint32_t minor_version = extract_uint16(exec_bswap, buf+6 );
+
+  if ( major_version != PCAP_MAJOR_VERSION || minor_version != PCAP_MINOR_VERSION ) {
+    fprintf(stderr, "File is not a PCAP file (unexpected version number=%" PRId16 ".%" PRId16 ").\n",
+	    major_version, minor_version);
+    return ERROR_3;
   }
 
   double prev_time = -1;
@@ -150,7 +171,8 @@ int main(int argc, char *argv[])
   while(1){
     ret = force_fread(buf, 1, PACKET_HEADER_SIZE, stdin);
     if ( ret < PACKET_HEADER_SIZE ) {
-      return ERROR_3;
+      fprintf(stderr, "Unexpected end of file (partial packet header).\n");
+      return ERROR_4;
     }
     const uint32_t coarse_time = extract_uint32(exec_bswap, buf   );
     const uint32_t fine_time   = extract_uint32(exec_bswap, buf+ 4);
@@ -160,12 +182,14 @@ int main(int argc, char *argv[])
     double curr_time = coarse_time + fine_time * finetime_unit;
 
     if ( caplen > PACKET_DATA_MAX_SIZE ) {
-      return ERROR_4;
+      fprintf(stderr, "Unexpected packet header (caplen(=%" PRIx32 ") too long).\n", caplen);
+      return ERROR_5;
     }
     
     ret = force_fread(&(buf[PACKET_HEADER_SIZE]), 1, caplen, stdin);
     if ( ret < caplen ) {
-      return ERROR_5;
+      fprintf(stderr, "Unexpected end of file (partial packet data).\n");
+      return ERROR_6;
     }
 
     if ( prev_time < 0 ) {
