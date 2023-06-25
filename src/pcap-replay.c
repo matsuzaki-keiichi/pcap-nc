@@ -10,6 +10,8 @@
 // nanosleep
 #include <math.h>
 // floor
+#include <arpa/inet.h>
+// htonl
 #include <byteswap.h>
 // bswap_32 (gcc)
 #include <getopt.h>
@@ -89,6 +91,10 @@ uint32_t extract_uint32(int exec_bswap, void *ptr){
 uint16_t extract_uint16(int exec_bswap, void *ptr){
   const uint16_t value = * (uint16_t*) ptr;
   return (exec_bswap) ? bswap_16(value) : value;
+}
+
+void network_encode_uint32(void *ptr, uint32_t value){
+  * (uint32_t*) ptr = htonl( value );
 }
 
 
@@ -174,7 +180,7 @@ int main(int argc, char *argv[])
       fprintf(stderr, "Unexpected end of file (partial packet header).\n");
       return ERROR_4;
     }
-    const uint32_t coarse_time = extract_uint32(exec_bswap, buf   );
+    const uint32_t coarse_time = extract_uint32(exec_bswap, buf+ 0);
     const uint32_t fine_time   = extract_uint32(exec_bswap, buf+ 4);
     const uint32_t caplen      = extract_uint32(exec_bswap, buf+ 8);
     const uint32_t orglen      = extract_uint32(exec_bswap, buf+12);
@@ -192,6 +198,11 @@ int main(int argc, char *argv[])
       return ERROR_6;
     }
 
+    network_encode_uint32(buf+ 0, coarse_time);
+    network_encode_uint32(buf+ 4, fine_time);
+    network_encode_uint32(buf+ 8, caplen);
+    network_encode_uint32(buf+12, orglen);
+      
     if ( prev_time < 0 ) {
 
       sleep((unsigned int) wait_time);
@@ -206,7 +217,9 @@ int main(int argc, char *argv[])
 	struct timespec ts_rem;
 	int iret;
 
-	while (1) {
+//	while (1) {
+	sleep(1);//
+	while (0) {
 	  iret = nanosleep(&ts_req, &ts_rem);
 	  if ( iret == 0 ) break;
 
