@@ -9,11 +9,11 @@ args_store=""
 while (( $# > 0 ))
 do
     case $1 in
-	--after | --after=*)
-	    if [[ "$1" =~ ^--after= ]]; then
+	--after |                          --after=*)
+	    if [[ "$1" =~                 ^--after= ]]; then
 		OPT=$(echo $1 | sed -e 's/^--after=//')
 	    elif [[ -z "$2" ]] || [[ "$2" =~ ^-+ ]]; then
-		echo "'option --after' requires an argument." 1>&2
+		echo              "'option --after' requires an argument." 1>&2
 		exit 1
 	    else
 		OPT="$2"
@@ -21,17 +21,20 @@ do
 	    fi
 	    args_replay="$args_replay --after=$OPT"
 	    ;;
-	--interval | --interval=*)
-	    if [[ "$1" =~ ^--interval= ]]; then
+	--interval |                       --interval=*)
+	    if [[ "$1" =~                 ^--interval= ]]; then
 		OPT=$(echo $1 | sed -e 's/^--interval=//')
 	    elif [[ -z "$2" ]] || [[ "$2" =~ ^-+ ]]; then
-		echo "'option --interval' requires an argument." 1>&2
+		echo              "'option --interval' requires an argument." 1>&2
 		exit 1
 	    else
 		OPT="$2"
 		shift
 	    fi
 	    args_replay="$args_replay --interval=$OPT"
+	    ;;
+	--original-time)
+	    args_replay="$args_replay --original-time"
 	    ;;
 	--link-type | --link-type=*)
 	    if [[ "$1" =~ ^--link-type= ]]; then

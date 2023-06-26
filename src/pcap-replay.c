@@ -9,6 +9,8 @@
 // PRIx32
 #include <time.h>
 // nanosleep
+#include <sys/time.h>
+// gettimeofday
 #include <math.h>
 // floor
 #include <arpa/inet.h>
@@ -85,7 +87,7 @@ static size_t force_fwrite(const void *buf, size_t size, size_t nmemb, FILE *fp)
   return nmemb - remaining_nmemb;
 }
 
-static double my_sleep(double tdiff){
+static double s3sim_sleep(double tdiff){
 
   if ( tdiff <= 0.0 ) {
     return 0.0;
@@ -106,6 +108,19 @@ static double my_sleep(double tdiff){
   return 0.0;
 }
 
+#if 0
+static double s3sim_time(){
+  struct timeval tv;
+
+  int iret = gettimeofday(&tv, NULL);
+
+  time_t      sec  = tv.tv_sec;
+  suseconds_t usec = tv.tv_usec;
+
+  return sec + usec * 1e-6;
+}
+#endif
+
 uint32_t extract_uint32(int exec_bswap, void *ptr){
   const uint32_t value = * (uint32_t*) ptr;
   return (exec_bswap) ? bswap_32(value) : value;
@@ -121,18 +136,20 @@ void network_encode_uint32(void *ptr, uint32_t value){
 }
 
 
-#define OPTSTRING "ai"
+#define OPTSTRING ""
 
 static int verbose_flag = 0;
 
 static struct option long_options[] = {
-  {"after",    required_argument, NULL, 'a'},
-  {"interval", required_argument, NULL, 'i'},
+  {"after",         required_argument, NULL, 'a'},
+  {"interval",      required_argument, NULL, 'i'},
+  {"original-time",       no_argument, NULL, 'o'},
   { NULL,      0,                 NULL,  0 }
 };
 
-static double param_wait_time    = 0.0;
-static double param_interval_sec = 0.0;
+static double param_wait_time     = 0.0;
+static double param_interval_sec  = 0.0;
+static int    param_original_time = 0;
 
 int main(int argc, char *argv[])
 {
@@ -150,6 +167,7 @@ int main(int argc, char *argv[])
     switch (c) {
     case 'a': param_wait_time    = atof(optarg); if (param_wait_time    < 0.0) param_wait_time    = 0.0; break;
     case 'i': param_interval_sec = atof(optarg); if (param_interval_sec < 0.0) param_interval_sec = 0.0; break;
+    case 'o': param_original_time = 1; break;
     default: option_error=1; break;
     }
   }
@@ -177,17 +195,14 @@ int main(int argc, char *argv[])
   const uint32_t magic_number = *(uint32_t*)&(buf[ 0]);
   const uint32_t magic_number_swap = bswap_32(magic_number);
   double finetime_unit;
+  uint32_t u2p;
   int exec_bswap;
   
-  if        ( magic_number      == MAGIC_NUMBER_USEC ) {
-    finetime_unit = 1e-6; exec_bswap = 0;
-  } else if ( magic_number_swap == MAGIC_NUMBER_USEC ) {
-    finetime_unit = 1e-6; exec_bswap = 1;
-  } else if ( magic_number      == MAGIC_NUMBER_NSEC ) {
-    finetime_unit = 1e-9; exec_bswap = 0;
-  } else if ( magic_number_swap == MAGIC_NUMBER_NSEC ) {
-    finetime_unit = 1e-9; exec_bswap = 1;
-  } else {
+  if      ( magic_number      == MAGIC_NUMBER_USEC ) { finetime_unit = 1e-6; u2p = 1;    exec_bswap = 0; }
+  else if ( magic_number_swap == MAGIC_NUMBER_USEC ) { finetime_unit = 1e-6; u2p = 1;    exec_bswap = 1; }
+  else if ( magic_number      == MAGIC_NUMBER_NSEC ) { finetime_unit = 1e-9; u2p = 1000; exec_bswap = 0; }
+  else if ( magic_number_swap == MAGIC_NUMBER_NSEC ) { finetime_unit = 1e-9; u2p = 1000; exec_bswap = 1; }
+  else {
     fprintf(stderr, "File is not a PCAP file (bad magic number).\n");
     return ERROR_3;
   }
@@ -227,22 +242,39 @@ int main(int argc, char *argv[])
       return ERROR_7;
     }
 
-    network_encode_uint32(buf+ 0, coarse_time);
-    network_encode_uint32(buf+ 4, fine_time);
+    // update Packet Header (ending conversion is performed if needed)
+
+
+    if (!param_original_time) {
+      struct timeval tv;
+      
+      const int iret = gettimeofday(&tv, NULL);
+
+      if ( iret == 0 ) {
+	const uint32_t now_coarse_time =       (uint32_t)  tv.tv_sec;
+	const uint32_t now_fine_time   = u2p * (uint32_t)  tv.tv_usec;
+	
+	network_encode_uint32(buf+ 0, now_coarse_time);
+	network_encode_uint32(buf+ 4, now_fine_time);
+      }
+    } else {
+      network_encode_uint32(buf+ 0, coarse_time);
+      network_encode_uint32(buf+ 4, fine_time);
+    }
     network_encode_uint32(buf+ 8, caplen);
     network_encode_uint32(buf+12, orglen);
       
     if ( prev_time < 0 ) {
 
-      my_sleep(param_wait_time);
+      s3sim_sleep(param_wait_time);
 
     } else {
       const double tdiff = curr_time - prev_time;
 
       if ( param_interval_sec == 0.0 ) {
-	my_sleep(tdiff);
+	s3sim_sleep(tdiff);
       } else {
-	my_sleep(param_interval_sec);
+	s3sim_sleep(param_interval_sec);
       }
     }
     debug_fprintf(stderr, "curr_time=%f\n", curr_time);

@@ -1,5 +1,7 @@
 	server				client
 	
-1	--link-type=spp			--interval=0.1
-1a	na				--interval=1.0
-1b	na				--interval=10
+1	--link-type=spp			--interval=0.1 --original-time
+1a	na				--interval=1.0 --original-time
+1b	na				--interval=10  --original-time
+1c	na				--interval=0.1
+1e	na				--interval=10
