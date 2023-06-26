@@ -1,0 +1,5 @@
+	server				client
+	
+1	--link-type=spp			--interval=0.1
+1a	na				--interval=1.0
+1b	na				--interval=10
