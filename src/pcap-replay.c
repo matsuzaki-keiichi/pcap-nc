@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 // atoi
+// atof
 #include <unistd.h>
 // sleep
 #include <stdint.h>
@@ -44,7 +45,7 @@
 #define debug_fprintf
 #endif
 
-size_t force_fread(void *buf, size_t size, size_t nmemb, FILE *fp){
+static size_t force_fread(void *buf, size_t size, size_t nmemb, FILE *fp){
   size_t remaining_nmemb = nmemb;
   ssize_t ret;
 
@@ -64,7 +65,7 @@ size_t force_fread(void *buf, size_t size, size_t nmemb, FILE *fp){
   return nmemb - remaining_nmemb;
 }
 
-size_t force_fwrite(const void *buf, size_t size, size_t nmemb, FILE *fp){
+static size_t force_fwrite(const void *buf, size_t size, size_t nmemb, FILE *fp){
   size_t remaining_nmemb = nmemb;
   ssize_t ret;
 
@@ -84,6 +85,27 @@ size_t force_fwrite(const void *buf, size_t size, size_t nmemb, FILE *fp){
   return nmemb - remaining_nmemb;
 }
 
+static double my_sleep(double tdiff){
+
+  if ( tdiff <= 0.0 ) {
+    return 0.0;
+  }
+
+  const double coarse_dtime = floor(tdiff);
+  const long fine_dtime = (long)((tdiff - coarse_dtime) * 1e9);
+  struct timespec ts_req = {(time_t)coarse_dtime, fine_dtime};
+  struct timespec ts_rem;
+  
+  int iret = 1;
+  while (iret) {
+    iret = nanosleep(&ts_req, &ts_rem);
+    ts_req.tv_sec  = ts_rem.tv_sec;
+    ts_req.tv_nsec = ts_rem.tv_nsec;
+  }
+  
+  return 0.0;
+}
+
 uint32_t extract_uint32(int exec_bswap, void *ptr){
   const uint32_t value = * (uint32_t*) ptr;
   return (exec_bswap) ? bswap_32(value) : value;
@@ -99,16 +121,18 @@ void network_encode_uint32(void *ptr, uint32_t value){
 }
 
 
-#define OPTSTRING "a"
+#define OPTSTRING "ai"
 
 static int verbose_flag = 0;
 
 static struct option long_options[] = {
-  {"after", required_argument, NULL, 'a'},
-  { NULL,   0,                 NULL,  0 }
+  {"after",    required_argument, NULL, 'a'},
+  {"interval", required_argument, NULL, 'i'},
+  { NULL,      0,                 NULL,  0 }
 };
 
-static int wait_time = 0;
+static double param_wait_time    = 0.0;
+static double param_interval_sec = 0.0;
 
 int main(int argc, char *argv[])
 {
@@ -124,7 +148,8 @@ int main(int argc, char *argv[])
     if ( c == -1 ) break;
     
     switch (c) {
-    case 'a': wait_time=atoi(optarg); if (wait_time < 0) wait_time = 0; break;
+    case 'a': param_wait_time    = atof(optarg); if (param_wait_time    < 0.0) param_wait_time    = 0.0; break;
+    case 'i': param_interval_sec = atof(optarg); if (param_interval_sec < 0.0) param_interval_sec = 0.0; break;
     default: option_error=1; break;
     }
   }
@@ -132,7 +157,7 @@ int main(int argc, char *argv[])
     return 1;
   }
   
-  debug_fprintf(stderr, "wait_time=%u\n", wait_time);
+  debug_fprintf(stderr, "param_wait_time=%u\n", param_wait_time);
 
   ////
     
@@ -209,27 +234,15 @@ int main(int argc, char *argv[])
       
     if ( prev_time < 0 ) {
 
-      sleep((unsigned int) wait_time);
+      my_sleep(param_wait_time);
 
     } else {
       const double tdiff = curr_time - prev_time;
 
-      if ( tdiff > 0 ) {
-	const double coarse_dtime = floor(tdiff);
-	const long fine_dtime = (long)((tdiff - coarse_dtime) * 1e9);
-	struct timespec ts_req = {(time_t)coarse_dtime, fine_dtime};
-	struct timespec ts_rem;
-	int iret;
-
-//	while (1) {
-	sleep(1);//
-	while (0) {
-	  iret = nanosleep(&ts_req, &ts_rem);
-	  if ( iret == 0 ) break;
-
-	  ts_req.tv_sec  = ts_rem.tv_sec;
-	  ts_req.tv_nsec = ts_rem.tv_nsec;
-	}
+      if ( param_interval_sec == 0.0 ) {
+	my_sleep(tdiff);
+      } else {
+	my_sleep(param_interval_sec);
       }
     }
     debug_fprintf(stderr, "curr_time=%f\n", curr_time);
