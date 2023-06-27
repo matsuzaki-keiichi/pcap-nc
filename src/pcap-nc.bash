@@ -6,6 +6,8 @@ args_nc=""
 args_replay=""
 args_store=""
 
+SLEEP=0
+
 while (( $# > 0 ))
 do
     case $1 in
@@ -55,6 +57,18 @@ do
 	    esac
 	    args_store="$arg_store --link-type=$OPT"
 	    ;;
+	--sleep |                          --sleep=*)
+	    if [[ "$1" =~                 ^--sleep= ]]; then
+		OPT=$(echo $1 | sed -e 's/^--sleep=//')
+	    elif [[ -z "$2" ]] || [[ "$2" =~ ^-+ ]]; then
+		echo              "'option --sleep' requires an argument." 1>&2
+		exit 1
+	    else
+		OPT="$2"
+		shift
+	    fi
+	    SLEEP=$OPT
+	    ;;
 	*)
 	    # pass all other arguments to nc
 	    args_nc="$args_nc $1"
@@ -68,5 +82,6 @@ done
 # echo $args_replay
 # echo args_store=$args_store
 
+sleep $SLEEP
 stdbuf -o 0 $progdir/pcap-replay $args_replay | stdbuf -i 0 -o 0 nc $args_nc | stdbuf -i 0 $progdir/pcap-store $args_store
 
