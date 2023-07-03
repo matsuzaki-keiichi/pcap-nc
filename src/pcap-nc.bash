@@ -12,8 +12,8 @@ SLEEP=0
 while (( $# > 0 ))
 do
     case $1 in
-	--after |                          --after=*)
-	    if [[ "$1" =~                 ^--after= ]]; then
+	--after |                      --after=*)
+	    if [[ "$1" =~             ^--after= ]]; then
 		OPT=$(echo $1 | sed -e 's/^--after=//')
 	    elif [[ -z "$2" ]] || [[ "$2" =~ ^-+ ]]; then
 		echo              "'option --after' requires an argument." 1>&2
@@ -24,8 +24,32 @@ do
 	    fi
 	    args_replay="$args_replay --after=$OPT"
 	    ;;
-	--interval |                       --interval=*)
-	    if [[ "$1" =~                 ^--interval= ]]; then
+	--config |                     --config=*)
+	    if [[ "$1" =~             ^--config= ]]; then
+		OPT=$(echo $1 | sed -e 's/^--config=//')
+	    elif [[ -z "$2" ]] || [[ "$2" =~ ^-+ ]]; then
+		echo              "'option --config' requires an argument." 1>&2
+		exit 1
+	    else
+		OPT="$2"
+		shift
+	    fi
+	    args_replay="$args_replay --config=$OPT"
+	    ;;
+	--channel |                    --channel=*)
+	    if [[ "$1" =~             ^--channel= ]]; then
+		OPT=$(echo $1 | sed -e 's/^--channel=//')
+	    elif [[ -z "$2" ]] || [[ "$2" =~ ^-+ ]]; then
+		echo              "'option --channel' requires an argument." 1>&2
+		exit 1
+	    else
+		OPT="$2"
+		shift
+	    fi
+	    args_replay="$args_replay --channel=$OPT"
+	    ;;
+	--interval |                   --interval=*)
+	    if [[ "$1" =~             ^--interval= ]]; then
 		OPT=$(echo $1 | sed -e 's/^--interval=//')
 	    elif [[ -z "$2" ]] || [[ "$2" =~ ^-+ ]]; then
 		echo              "'option --interval' requires an argument." 1>&2

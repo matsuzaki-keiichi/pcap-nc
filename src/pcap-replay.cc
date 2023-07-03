@@ -14,6 +14,8 @@
 // bswap_32 (gcc)
 #include <getopt.h>
 
+#include <string>
+
 #include "rmap_channel.h"
 #include "pcap-nc-util.h"
 #include "s3sim.h"
@@ -37,20 +39,24 @@
 
 #define OPTSTRING ""
 
-#define RMAPW 1
+static int use_rmapw = 0;
 
 static int verbose_flag = 0;
 
 static struct option long_options[] = {
   {"after",         required_argument, NULL, 'a'},
+  {"config",        required_argument, NULL, 'c'},
+  {"channel",       required_argument, NULL, 'n'},
   {"interval",      required_argument, NULL, 'i'},
   {"original-time",       no_argument, NULL, 'o'},
   { NULL,      0,                 NULL,  0 }
 };
 
-static double param_wait_time     = 0.0;
-static double param_interval_sec  = 0.0;
-static int    param_original_time = 0;
+static double      param_wait_time     = 0.0;
+static double      param_interval_sec  = 0.0;
+static std::string param_config        = ""; 
+static std::string param_channel       = ""; 
+static int         param_original_time = 0;
 
 int main(int argc, char *argv[])
 {
@@ -66,9 +72,11 @@ int main(int argc, char *argv[])
     if ( c == -1 ) break;
     
     switch (c) {
-    case 'a': param_wait_time    = atof(optarg); if (param_wait_time    < 0.0) param_wait_time    = 0.0; break;
-    case 'i': param_interval_sec = atof(optarg); if (param_interval_sec < 0.0) param_interval_sec = 0.0; break;
-    case 'o': param_original_time = 1; break;
+    case 'a': param_wait_time      = atof(optarg); if (param_wait_time    < 0.0) param_wait_time    = 0.0; break;
+    case 'c': param_config  = std::string(optarg); break;
+    case 'n': param_channel = std::string(optarg); break;
+    case 'i': param_interval_sec   = atof(optarg); if (param_interval_sec < 0.0) param_interval_sec = 0.0; break;
+    case 'o': param_original_time  = 1; break;
     default: option_error=1; break;
     }
   }
@@ -76,6 +84,11 @@ int main(int argc, char *argv[])
     return 1;
   }
   
+  if ( param_config != "" && param_channel != "" ){
+    use_rmapw = 1;
+    // TODO fix tentative implementation.
+  }
+
   debug_fprintf(stderr, "param_wait_time=%u\n", param_wait_time);
 
   ////
@@ -120,11 +133,11 @@ int main(int argc, char *argv[])
 
   double prev_time = -1;
   
-#if RMAPW
   class rmap_write_channel rmapw;
 
-  rmapw.read_json("sample.json", "channel1");
-#endif
+  if ( use_rmapw ) {
+    rmapw.read_json(param_config.c_str(), param_channel.c_str());
+  }
 
   while(1){
     ret = pcapnc_fread(inbuf, 1, PACKET_HEADER_SIZE, stdin);
@@ -169,18 +182,20 @@ int main(int argc, char *argv[])
       network_encode_uint32(outbuf+ 4, fine_time);
     }
 
-#if RMAPW
-    const size_t insize  = caplen;
-    size_t outsize = PACKET_DATA_MAX_SIZE;
+    size_t outlen;
+    uint8_t *in_packet  = inbuf  + PACKET_HEADER_SIZE;
+    uint8_t *out_packet = outbuf + PACKET_HEADER_SIZE;
+    if ( use_rmapw ) {
+      const size_t insize  = caplen;
+      size_t outsize = PACKET_DATA_MAX_SIZE;
 
-    rmapw.send_witouht_ack(inbuf+16, insize, outbuf+16, &outsize);
+      rmapw.send_witouht_ack(in_packet, insize, out_packet, &outsize);
 
-    const size_t outlen = outsize;
-#else    
-    memcpy(outbuf+16, inbuf+16, caplen);
-
-    const size_t outlen = caplen;
-#endif
+      outlen = outsize;
+    } else {
+      memcpy(out_packet, in_packet, caplen);
+      outlen = caplen;
+    }
 
     network_encode_uint32(outbuf+ 8, outlen);
     network_encode_uint32(outbuf+12, outlen);
