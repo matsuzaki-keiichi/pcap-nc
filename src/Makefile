@@ -1,4 +1,4 @@
-ALL=pcap-nc pcap-store pcap-replay head-diosatlm.pcap head-spp.pcap head-spw.pcap
+ALL=pcap-nc pcap-store pcap-replay head-diosatlm.pcap head-spp.pcap head-spw.pcap rmap-write
 MED=write_head
 
 all: ${ALL} ${MED}
@@ -9,7 +9,10 @@ pcap-nc: pcap-nc.bash
 pcap-store: pcap-store.bash
 	cp $< $@
 
-pcap-replay: pcap-replay.c
+pcap-replay: pcap-replay.c pcap-nc-util.c s3sim.c
+	cc -o $@ $^ -lm
+
+rmap-write: rmap-write.c pcap-nc-util.c s3sim.c 
 	cc -o $@ $^ -lm
 
 write_head: write_head.c

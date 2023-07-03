@@ -1,23 +1,19 @@
 #include <stdio.h>
 #include <stdlib.h>
-// atoi
 // atof
 #include <unistd.h>
 // sleep
 #include <stdint.h>
 #include <inttypes.h>
 // PRIx32
-#include <time.h>
-// nanosleep
 #include <sys/time.h>
 // gettimeofday
-#include <math.h>
-// floor
-#include <arpa/inet.h>
-// htonl
 #include <byteswap.h>
 // bswap_32 (gcc)
 #include <getopt.h>
+
+#include "pcap-nc-util.h"
+#include "s3sim.h"
 
 #define PCAP_HEADER_SIZE    24
 #define PACKET_HEADER_SIZE  16
@@ -28,9 +24,6 @@
 #define PCAP_MAJOR_VERSION   2
 #define PCAP_MINOR_VERSION   4
 
-#define READ_RETRY 1 // sec
-#define WRITE_RETRY 1 // sec
-
 #define ERROR_1 1
 #define ERROR_2 2
 #define ERROR_3 3
@@ -38,103 +31,6 @@
 #define ERROR_5 5
 #define ERROR_6 6
 #define ERROR_7 7
-
-// #define DEBUG
-
-#ifdef DEBUG
-#define debug_fprintf fprintf
-#else
-#define debug_fprintf
-#endif
-
-static size_t force_fread(void *buf, size_t size, size_t nmemb, FILE *fp){
-  size_t remaining_nmemb = nmemb;
-  ssize_t ret;
-
-  while ( remaining_nmemb > 0 ) {
-    debug_fprintf(stderr, "remaining_nmemb=%zd\n", remaining_nmemb);
-	    
-    ret = fread(buf, size, remaining_nmemb, fp);
-
-    if ( ret > 0 ) {
-      remaining_nmemb -= ret;
-    } else {
-      if ( feof(fp) ) break;
-      if ( ferror(fp) ) break;
-      sleep(READ_RETRY);
-    }
-  }
-  return nmemb - remaining_nmemb;
-}
-
-static size_t force_fwrite(const void *buf, size_t size, size_t nmemb, FILE *fp){
-  size_t remaining_nmemb = nmemb;
-  ssize_t ret;
-
-  while ( remaining_nmemb > 0 ) {
-    debug_fprintf(stderr, "remaining_nmemb=%zd\n", remaining_nmemb);
-	    
-    ret = fwrite(buf, size, remaining_nmemb, fp);
-
-    if ( ret > 0 ) {
-      remaining_nmemb -= ret;
-    } else {
-      if ( feof(fp) ) break;
-      if ( ferror(fp) ) break;
-      sleep(WRITE_RETRY);
-    }
-  }
-  return nmemb - remaining_nmemb;
-}
-
-static double s3sim_sleep(double tdiff){
-
-  if ( tdiff <= 0.0 ) {
-    return 0.0;
-  }
-
-  const double coarse_dtime = floor(tdiff);
-  const long fine_dtime = (long)((tdiff - coarse_dtime) * 1e9);
-  struct timespec ts_req = {(time_t)coarse_dtime, fine_dtime};
-  struct timespec ts_rem;
-  
-  int iret = 1;
-  while (iret) {
-    iret = nanosleep(&ts_req, &ts_rem);
-    ts_req.tv_sec  = ts_rem.tv_sec;
-    ts_req.tv_nsec = ts_rem.tv_nsec;
-  }
-  
-  return 0.0;
-}
-
-#if 0
-static double s3sim_time(){
-  struct timeval tv;
-
-  int iret = gettimeofday(&tv, NULL);
-
-  time_t      sec  = tv.tv_sec;
-  suseconds_t usec = tv.tv_usec;
-
-  return sec + usec * 1e-6;
-}
-#endif
-
-uint32_t extract_uint32(int exec_bswap, void *ptr){
-  const uint32_t value = * (uint32_t*) ptr;
-  return (exec_bswap) ? bswap_32(value) : value;
-}
-
-uint16_t extract_uint16(int exec_bswap, void *ptr){
-  const uint16_t value = * (uint16_t*) ptr;
-  return (exec_bswap) ? bswap_16(value) : value;
-}
-
-void network_encode_uint32(void *ptr, uint32_t value){
-  * (uint32_t*) ptr = htonl( value );
-}
-
 
 #define OPTSTRING ""
 
@@ -183,7 +79,7 @@ int main(int argc, char *argv[])
 
   ssize_t ret;
 
-  ret = force_fread(buf, 1, PCAP_HEADER_SIZE, stdin);
+  ret = pcapnc_fread(buf, 1, PCAP_HEADER_SIZE, stdin);
   if ( ret == 0 ) {
     fprintf(stderr, "No input (missing header).\n");
     return ERROR_1;
@@ -219,7 +115,7 @@ int main(int argc, char *argv[])
   double prev_time = -1;
   
   while(1){
-    ret = force_fread(buf, 1, PACKET_HEADER_SIZE, stdin);
+    ret = pcapnc_fread(buf, 1, PACKET_HEADER_SIZE, stdin);
     if ( ret < PACKET_HEADER_SIZE ) {
       fprintf(stderr, "Unexpected end of file (partial packet header).\n");
       return ERROR_5;
@@ -236,7 +132,7 @@ int main(int argc, char *argv[])
       return ERROR_6;
     }
     
-    ret = force_fread(&(buf[PACKET_HEADER_SIZE]), 1, caplen, stdin);
+    ret = pcapnc_fread(&(buf[PACKET_HEADER_SIZE]), 1, caplen, stdin);
     if ( ret < caplen ) {
       fprintf(stderr, "Unexpected end of file (partial packet data).\n");
       return ERROR_7;
@@ -244,18 +140,17 @@ int main(int argc, char *argv[])
 
     // update Packet Header (ending conversion is performed if needed)
 
-
     if (!param_original_time) {
       struct timeval tv;
       
       const int iret = gettimeofday(&tv, NULL);
 
       if ( iret == 0 ) {
-	const uint32_t now_coarse_time =       (uint32_t)  tv.tv_sec;
-	const uint32_t now_fine_time   = u2p * (uint32_t)  tv.tv_usec;
+      	const uint32_t now_coarse_time =       (uint32_t)  tv.tv_sec;
+      	const uint32_t now_fine_time   = u2p * (uint32_t)  tv.tv_usec;
 	
-	network_encode_uint32(buf+ 0, now_coarse_time);
-	network_encode_uint32(buf+ 4, now_fine_time);
+      	network_encode_uint32(buf+ 0, now_coarse_time);
+      	network_encode_uint32(buf+ 4, now_fine_time);
       }
     } else {
       network_encode_uint32(buf+ 0, coarse_time);
@@ -272,14 +167,14 @@ int main(int argc, char *argv[])
       const double tdiff = curr_time - prev_time;
 
       if ( param_interval_sec == 0.0 ) {
-	s3sim_sleep(tdiff);
+	      s3sim_sleep(tdiff);
       } else {
-	s3sim_sleep(param_interval_sec);
+      	s3sim_sleep(param_interval_sec);
       }
     }
     debug_fprintf(stderr, "curr_time=%f\n", curr_time);
 
-    ret = force_fwrite(buf, 1, PACKET_HEADER_SIZE+caplen, stdout);
+    ret = pcapnc_fwrite(buf, 1, PACKET_HEADER_SIZE+caplen, stdout);
 
     prev_time = curr_time;
   }
@@ -288,5 +183,3 @@ int main(int argc, char *argv[])
   
   return 0;
 }
-
-

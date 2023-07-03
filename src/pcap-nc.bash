@@ -5,6 +5,7 @@ progdir=`dirname $0`
 args_nc=""
 args_replay=""
 args_store=""
+param_no_stdin=0
 
 SLEEP=0
 
@@ -57,6 +58,9 @@ do
 	    esac
 	    args_store="$arg_store --link-type=$OPT"
 	    ;;
+	--no-stdin)
+		param_no_stdin=1
+	    ;;
 	--sleep |                          --sleep=*)
 	    if [[ "$1" =~                 ^--sleep= ]]; then
 		OPT=$(echo $1 | sed -e 's/^--sleep=//')
@@ -83,5 +87,9 @@ done
 # echo args_store=$args_store
 
 sleep $SLEEP
-stdbuf -o 0 $progdir/pcap-replay $args_replay | stdbuf -i 0 -o 0 nc $args_nc | stdbuf -i 0 $progdir/pcap-store $args_store
 
+if [[ "$param_no_stdin" -ne 0 ]]; then	
+	                                                     stdbuf -i 0 -o 0 nc -q 0 -w 10 -N $args_nc | stdbuf -i 0 $progdir/pcap-store $args_store
+else
+	stdbuf -i 0 -o 0 $progdir/pcap-replay $args_replay | stdbuf -i 0 -o 0 nc -q 0 -w 10 -N $args_nc | stdbuf -i 0 $progdir/pcap-store $args_store
+fi
