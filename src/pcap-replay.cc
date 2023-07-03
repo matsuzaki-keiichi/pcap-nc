@@ -37,7 +37,7 @@
 
 #define OPTSTRING ""
 
-#define RMAPW 0
+#define RMAPW 1
 
 static int verbose_flag = 0;
 
@@ -80,8 +80,8 @@ int main(int argc, char *argv[])
 
   ////
     
-  static char inbuf  [PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
-  static char outbuf [PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
+  static uint8_t inbuf  [PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
+  static uint8_t outbuf [PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
 
   ssize_t ret;
 
@@ -168,17 +168,22 @@ int main(int argc, char *argv[])
       network_encode_uint32(outbuf+ 0, coarse_time);
       network_encode_uint32(outbuf+ 4, fine_time);
     }
-    network_encode_uint32(outbuf+ 8, caplen);
-    network_encode_uint32(outbuf+12, orglen);
 
 #if RMAPW
     const size_t insize  = caplen;
     size_t outsize = PACKET_DATA_MAX_SIZE;
 
-    rmapw.send_witouht_ack(inbuf, insize, outbuf, &outsize);
+    rmapw.send_witouht_ack(inbuf+16, insize, outbuf+16, &outsize);
+
+    const size_t outlen = outsize;
 #else    
     memcpy(outbuf+16, inbuf+16, caplen);
+
+    const size_t outlen = caplen;
 #endif
+
+    network_encode_uint32(outbuf+ 8, outlen);
+    network_encode_uint32(outbuf+12, outlen);
 
     if ( prev_time < 0 ) {
 
@@ -195,7 +200,7 @@ int main(int argc, char *argv[])
     }
     debug_fprintf(stderr, "curr_time=%f\n", curr_time);
 
-    ret = pcapnc_fwrite(outbuf, 1, PACKET_HEADER_SIZE+caplen, stdout);
+    ret = pcapnc_fwrite(outbuf, 1, PACKET_HEADER_SIZE+outlen, stdout);
 
     prev_time = curr_time;
   }

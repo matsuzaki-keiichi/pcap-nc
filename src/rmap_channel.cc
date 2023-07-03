@@ -120,7 +120,8 @@ void rmap_write_channel::read_json(const char *file_name, const char *channel_na
         this->num_dpa = read_hex_chars(channel, "destination_path_address", this->d_path_address, RMAP_MAX_NUM_PATH_ADDRESS);
         this->num_spa = read_hex_chars(channel, "source_path_address",      this->s_path_address, RMAP_MAX_NUM_PATH_ADDRESS);
 
-        this->num_dpa_padding = (RMAP_MAX_NUM_PATH_ADDRESS - this->num_dpa) % 4;
+//      this->num_dpa_padding = (RMAP_MAX_NUM_PATH_ADDRESS - this->num_dpa) % 4;
+        this->num_dpa_padding = 0;
         this->num_spa_padding = (RMAP_MAX_NUM_PATH_ADDRESS - this->num_spa) % 4;
 
         this->destination_logical_address = read_hex_uint8 (channel, "destination_logical_address");
