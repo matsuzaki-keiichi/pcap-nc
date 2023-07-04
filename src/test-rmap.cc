@@ -12,15 +12,15 @@ int main(int argc, char *argv[])
 
     ////
 
-    printf("destination_path_address:    " );
-    for ( size_t i=0 ; i<rmapw.num_dpa ; i++ ) printf("0x%02" PRIx8  " ", rmapw.d_path_address[i] ); fputc('\n', stdout);
-    printf("destination_logical_address: 0x%02" PRIx8  "\n", rmapw.destination_logical_address );
-    printf("destination_key:             0x%02" PRIx8  "\n", rmapw.destination_key );
-    printf("source_path_address:         " );
-    for ( size_t i=0 ; i<rmapw.num_spa ; i++ ) printf("0x%02" PRIx8  " ", rmapw.s_path_address[i] ); fputc('\n', stdout);
-    printf("source_logical_address:      0x%02" PRIx8  "\n", rmapw.source_logical_address );
-    printf("write_address:               0x%08" PRIx64 "\n", rmapw.write_address ); // nominally 64bits, maximum 80bits
-    printf("\n");
+    fprintf(stderr, "destination_path_address:    " );
+    for ( size_t i=0 ; i<rmapw.num_dpa ; i++ ) fprintf(stderr, "0x%02" PRIx8  " ", rmapw.d_path_address[i] ); fputc('\n', stderr);
+    fprintf(stderr, "destination_logical_address: 0x%02" PRIx8  "\n", rmapw.destination_logical_address );
+    fprintf(stderr, "destination_key:             0x%02" PRIx8  "\n", rmapw.destination_key );
+    fprintf(stderr, "source_path_address:         " );
+    for ( size_t i=0 ; i<rmapw.num_spa ; i++ ) fprintf(stderr, "0x%02" PRIx8  " ", rmapw.s_path_address[i] ); fputc('\n', stderr);
+    fprintf(stderr, "source_logical_address:      0x%02" PRIx8  "\n", rmapw.source_logical_address );
+    fprintf(stderr, "memory_address:              0x%08" PRIx64 "\n", rmapw.memory_address ); // nominally 64bits, maximum 80bits
+    fprintf(stderr, "\n");
 
     ////
 
@@ -36,13 +36,12 @@ int main(int argc, char *argv[])
     const size_t p = rmapw.num_dpa_padding;
     const size_t q = sendsize+p;
 
-    printf("Transmitted RMAP Command:\n");
+    fprintf(stderr, "Transmitted RMAP Command:\n");
     for ( size_t i=0 ; i<q ; i++ ){
-        if ( i < p ) printf("  ");
-        else printf( "%02x", sendbuf[i-p]);
-        if ( i%4==3 || i == q-1 ) printf("\n"); else printf(" ");
+        if ( i < p ) fprintf(stderr, "  ");
+        else fprintf(stderr, "%02x", sendbuf[i-p]);
+        if ( i%4==3 || i == q-1 ) fprintf(stderr, "\n"); else fprintf(stderr, " ");
     }    
-    fflush(stdout);
 
     ////
 
@@ -51,24 +50,22 @@ int main(int argc, char *argv[])
     uint8_t *recvbuf  = sendbuf  + num_path_address;
     size_t   recvsize = sendsize - num_path_address;
 
-    printf("Received RMAP Command:\n");
+    fprintf(stderr, "Received RMAP Command:\n");
     for ( size_t i=0 ; i<recvsize ; i++ ){
-        printf( "%02x", recvbuf[i]);
-        if ( i%4==3 || i == recvsize-1 ) printf("\n"); else printf(" ");
+        fprintf(stderr, "%02x", recvbuf[i]);
+        if ( i%4==3 || i == recvsize-1 ) fprintf(stderr, "\n"); else fprintf(stderr, " ");
     }    
-    fflush(stdout);
 
     ////
 
     const uint8_t *outbuf;
-    size_t         outsize;
+    size_t         outsize = 0;
 
     rmapw.recv(recvbuf, recvsize, &outbuf, &outsize);
 
-    printf("Received Data:\n");
+    fprintf(stderr, "Received Data (%zu):\n", outsize);
     for ( size_t i=0 ; i<outsize ; i++ ){
-        printf( "%02x", outbuf[i]);
-        if ( i == outsize-1 ) printf("\n"); else printf(" ");
+        fprintf(stderr, "%02x", outbuf[i]);
+        if ( i == outsize-1 ) fprintf(stderr, "\n"); else fprintf(stderr, " ");
     }    
-    fflush(stdout);
 }

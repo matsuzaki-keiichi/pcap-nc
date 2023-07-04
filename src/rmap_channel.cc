@@ -16,42 +16,44 @@ using namespace std;
 #include <string.h>
 // memcpy
 
-static long long parse_hex_longlong(const char *s, const char *varname){
+#define pcapnc_logerr(...) fprintf(stderr, __VA_ARGS__) // TODO ...hhh...
+
+static long long parse_hex_longlong(const char *s, const char *varname, const char *channel_name){
     if ( s[0] != '0' || s[1] != 'x' ) {
-        fprintf(stderr, "%s shall start with '0x'.\n", varname);
+        pcapnc_logerr("%s of the channel '%s' shall start with '0x'.\n", varname, channel_name);
         exit(1);        
     }
 
     char *endptr;
     const long long llvalue = strtoull(s+2, &endptr, 16);
     if ( *endptr != 0 ) {
-        fprintf(stderr, "%s(%s) shall be a number.\n", varname, s);
+        pcapnc_logerr("%s(%s) of the channel '%s' shall be a number.\n", varname, s, channel_name);
         exit(1);        
     }
     return llvalue;
 }
 
-static uint8_t read_hex_uint8(const rapidjson::Value &obj, const char *varname){
+static uint8_t read_hex_uint8(const rapidjson::Value &obj, const char *varname, const char *channel_name){
     const char* s = obj[varname].GetString();
-    const long long llvalue = parse_hex_longlong(s, varname);
+    const long long llvalue = parse_hex_longlong(s, varname, channel_name);
     if ( llvalue >= 0x100 || llvalue < 0 ) {
-        fprintf(stderr, "%s(%s) shall be 1 byte value.\n", varname, s);
+        pcapnc_logerr("%s(%s) of the channel '%s' shall be 1 byte value.\n", varname, s, channel_name);
         exit(1);        
     }
     return (uint8_t) llvalue;    
 }
 
-static uint64_t read_hex_uint40(const rapidjson::Value &obj, const char *varname){
+static uint64_t read_hex_uint40(const rapidjson::Value &obj, const char *varname, const char *channel_name){
     const char* s = obj[varname].GetString();
-    const long long llvalue = parse_hex_longlong(s, varname);
+    const long long llvalue = parse_hex_longlong(s, varname, channel_name);
     if ( llvalue >= 0x10000000000 || llvalue < 0 ) {
-        fprintf(stderr, "%s shall be 5 byte value.\n", varname);
+        pcapnc_logerr("%s of the channel '%s' shall be 5 byte value.\n", varname, channel_name);
         exit(1);        
     }
     return (uint64_t) llvalue;    
 }
 
-static int read_hex_chars(const rapidjson::Value &obj, const char *varname, uint8_t out_buffer[], int buffer_size){
+static int read_hex_chars(const rapidjson::Value &obj, const char *varname, uint8_t out_buffer[], int buffer_size, const char *channel_name){
     const char* t = obj[varname].GetString();
     string str(t);
 
@@ -62,12 +64,12 @@ static int read_hex_chars(const rapidjson::Value &obj, const char *varname, uint
     int i=0;
     BOOST_FOREACH(string s, list_string) {
         if ( i>=buffer_size ) {
-            fprintf(stderr, "Size of %s exceeds %d.\n", varname, buffer_size);
+            pcapnc_logerr("Size of %s of the channel '%s' exceeds %d.\n", varname, channel_name, buffer_size);
             exit(1);        
         }
-        const long long llvalue = parse_hex_longlong(s.c_str(), varname);
+        const long long llvalue = parse_hex_longlong(s.c_str(), varname, channel_name);
         if ( llvalue >= 32 || llvalue < 0 ) {
-            fprintf(stderr, "%s(%s) shall be in the range from 0 to 31.\n", varname, s.c_str());
+            pcapnc_logerr("%s(%s) of the channel '%s' shall be in the range from 0 to 31.\n", varname, s.c_str(), channel_name);
             exit(1);        
         }
         out_buffer[i] = (uint8_t) llvalue;
@@ -95,7 +97,7 @@ rmap_write_channel::rmap_write_channel(){
     s_path_address[3] = 0x04; 
     source_logical_address      = 0x91;
 
-    write_address               = 0x6789abcdef;
+    memory_address              = 0x6789abcdef;
 
     transaction_id              = 0x9999;
 }
@@ -117,16 +119,22 @@ void rmap_write_channel::read_json(const char *file_name, const char *channel_na
         string name = channel["name"].GetString();
         if ( name != channel_name ) continue;
 
-        this->num_dpa = read_hex_chars(channel, "destination_path_address", this->d_path_address, RMAP_MAX_NUM_PATH_ADDRESS);
-        this->num_spa = read_hex_chars(channel, "source_path_address",      this->s_path_address, RMAP_MAX_NUM_PATH_ADDRESS);
+        this->num_dpa = read_hex_chars(channel, "destination_path_address", this->d_path_address, RMAP_MAX_NUM_PATH_ADDRESS, channel_name);
+        this->num_spa = read_hex_chars(channel, "source_path_address",      this->s_path_address, RMAP_MAX_NUM_PATH_ADDRESS, channel_name);
 
         this->num_dpa_padding = (RMAP_MAX_NUM_PATH_ADDRESS - this->num_dpa) % 4;
         this->num_spa_padding = (RMAP_MAX_NUM_PATH_ADDRESS - this->num_spa) % 4;
 
-        this->destination_logical_address = read_hex_uint8 (channel, "destination_logical_address");
-        this->destination_key             = read_hex_uint8 (channel, "destination_key");
-        this->source_logical_address      = read_hex_uint8 (channel, "source_logical_address");
-        this->write_address               = read_hex_uint40(channel, "write_address");
+        this->destination_logical_address = read_hex_uint8 (channel, "destination_logical_address", channel_name);
+        this->destination_key             = read_hex_uint8 (channel, "destination_key"            , channel_name);
+        this->source_logical_address      = read_hex_uint8 (channel, "source_logical_address"     , channel_name);
+        this->instruction                 = read_hex_uint8 (channel, "instruction"                , channel_name);
+        this->memory_address              = read_hex_uint40(channel, "memory_address"             , channel_name);
+
+        if ( this->instruction & 0x03 ) {
+            pcapnc_logerr("Lower 2bits of the istruction (%02x) of the channel '%s' shall be 0.\n", this->instruction, channel_name);
+            exit(1);        
+        }
 
 #ifdef DEBUG
         std::cout << "destination_path_address:    " << channel["destination_path_address"]    .GetString() << std::endl;
@@ -134,31 +142,29 @@ void rmap_write_channel::read_json(const char *file_name, const char *channel_na
         std::cout << "destination_key:             " << channel["destination_key"]             .GetString() << std::endl;
         std::cout << "source_path_address:         " << channel["source_path_address"]         .GetString() << std::endl;
         std::cout << "source_logical_address:      " << channel["source_logical_address"]      .GetString() << std::endl;
-        std::cout << "write_address:               " << channel["write_address"]               .GetString() << std::endl;
+        std::cout << "memory_address:              " << channel["memory_address"]              .GetString() << std::endl;
 #endif    
     }
 }
 
 #define RMAP_PROTOCOL_ID 0x01
 
-// Wrire Command without verify without acknowledge (0x60)
-// Instruction field = RMAP Command + Source Path Address Length
-//  0b: reserved
-//  1b: command
-//  1b: write
-//  0b: no verify
-//  0b: without acknowledge
-//  0b: no increment
-// xxb: source path address length
-
-#define INSTRUCTION 0x60
-
 void rmap_write_channel::send_witouht_ack(const uint8_t inbuf[], size_t insize, uint8_t sendbuf[], size_t *sendsize_p){
     const int m = this->num_dpa;
     const int n = this->num_spa + this->num_spa_padding;
 
     const int source_path_address_length = n >> 2; 
-    const uint8_t instruction = (INSTRUCTION & 0xFC) | (source_path_address_length & 0x03);
+    const uint8_t field2 = (this->instruction & 0xFC) | (source_path_address_length & 0x03);
+
+    // Wrire Command (e.g. 0x60, without verify, without acknowledge, without increment)
+    // Instruction field = RMAP Command + Source Path Address Length
+    //  0b: reserved
+    //  1b: command
+    //  1b: write
+    //  ?b: no verify / verify
+    //  ?b: without acknowledge / with acknowledge
+    //  ?b: no increment / increment
+    // xxb: source path address length
 
     memcpy(sendbuf, this->d_path_address, this->num_dpa);
 
@@ -166,24 +172,24 @@ void rmap_write_channel::send_witouht_ack(const uint8_t inbuf[], size_t insize, 
 
     cargo[ 0] = this->destination_logical_address;
     cargo[ 1] = RMAP_PROTOCOL_ID;
-    cargo[ 2] = instruction;
+    cargo[ 2] = field2;
     cargo[ 3] = this->destination_key;
 
     // source path address
     memset(cargo+4, 0, this->num_spa_padding);
     memcpy(cargo+4+this->num_spa_padding, this->s_path_address, this->num_spa);
 
-    cargo[ 4+n] = this->source_logical_address;
-    cargo[ 5+n] = (this->transaction_id>>  8) & 0xFF;
-    cargo[ 6+n] = (this->transaction_id>>  0) & 0xFF;
-    cargo[ 7+n] = (this->write_address >> 32) & 0xFF;
-    cargo[ 8+n] = (this->write_address >> 24) & 0xFF;
-    cargo[ 9+n] = (this->write_address >> 16) & 0xFF;
-    cargo[10+n] = (this->write_address >>  8) & 0xFF;
-    cargo[11+n] = (this->write_address >>  0) & 0xFF;
-    cargo[12+n] = (insize              >> 16) & 0xFF;
-    cargo[13+n] = (insize              >>  8) & 0xFF;
-    cargo[14+n] = (insize              >>  0) & 0xFF;
+    cargo[ 4+n] =  this->source_logical_address;
+    cargo[ 5+n] = (this->transaction_id >>  8) & 0xFF;
+    cargo[ 6+n] = (this->transaction_id >>  0) & 0xFF;
+    cargo[ 7+n] = (this->memory_address >> 32) & 0xFF;
+    cargo[ 8+n] = (this->memory_address >> 24) & 0xFF;
+    cargo[ 9+n] = (this->memory_address >> 16) & 0xFF;
+    cargo[10+n] = (this->memory_address >>  8) & 0xFF;
+    cargo[11+n] = (this->memory_address >>  0) & 0xFF;
+    cargo[12+n] = (      insize         >> 16) & 0xFF;
+    cargo[13+n] = (      insize         >>  8) & 0xFF;
+    cargo[14+n] = (      insize         >>  0) & 0xFF;
     cargo[15+n] = rmap_calculate_crc(cargo, 15+n);
 
     size_t sendsize0 = 16+m+n+insize+1;
@@ -205,10 +211,6 @@ void rmap_write_channel::send_witouht_ack(const uint8_t inbuf[], size_t insize, 
 void rmap_write_channel::recv(const uint8_t recvbuf[], size_t recvsize, const uint8_t **outbuf_p, size_t *outsize_p){
     const uint8_t *const cargo = recvbuf;
 
-    const uint8_t instruction = cargo[2];
-    const int source_path_address_length = instruction & 0x03; 
-    const int n = source_path_address_length << 2;
-
     if ( cargo[0] != this->destination_logical_address ){
         fprintf(stderr, "Destination Logical Address is not 0x%02x but 0x%02x.\n", 
             this->destination_logical_address, cargo[0]);
@@ -221,15 +223,19 @@ void rmap_write_channel::recv(const uint8_t recvbuf[], size_t recvsize, const ui
         return;       
     }
 
+    const uint8_t instruction            = cargo[2] & 0xFC;
+    const int source_path_address_length = cargo[2] & 0x03; 
+    const int n = source_path_address_length << 2;
+
     const uint8_t header_crc = rmap_calculate_crc(cargo, 15+n);
     if ( cargo[15+n] != header_crc ){
         fprintf(stderr, "Header CRC Error.\n");
         return;       
     }
 
-    if ( (instruction & 0xFC) != INSTRUCTION ) {
+    if ( instruction != this->instruction ) {
         fprintf(stderr, "Instruction is not 0x%02x but 0x%02x.\n", 
-            INSTRUCTION, instruction & 0xFC);
+            this->instruction, instruction & 0xFC);
         return;       
     }
 
@@ -244,9 +250,9 @@ void rmap_write_channel::recv(const uint8_t recvbuf[], size_t recvsize, const ui
         +                    (((uint64_t) cargo[ 9+n]) << 16)
         +                    (((uint64_t) cargo[10+n]) <<  8) 
         +                    (((uint64_t) cargo[11+n]) <<  0);
-    if ( address != this->write_address ){
+    if ( address != this->memory_address ){
         fprintf(stderr, "Write Address is not 0x%10" PRIx64 " but 0x%10" PRIx64 ".\n", 
-            this->write_address, address);
+            this->memory_address, address);
         return;       
     }
 
@@ -280,6 +286,37 @@ void rmap_write_channel::recv(const uint8_t recvbuf[], size_t recvsize, const ui
     *outsize_p = data_length;
 }
 
+void rmap_write_channel::reply(const uint8_t recvbuf[], size_t recvsize, uint8_t replybuf[], size_t *replylen){
+    const uint8_t *const cargo = recvbuf;
+
+    const uint8_t command_instruction = cargo[2];
+    const int source_path_address_length = command_instruction & 0x03; 
+    const int n = source_path_address_length << 2;
+    const uint8_t status = 0; // TODO implement status ??
+
+    // Wrire Reply (e.g. 0x28)
+    // Instruction field = RMAP Reply
+    //  0b: reserved
+    //  0b: response
+    //  1b: write
+    //  ?b: no verify (?)
+    //  1b: with acknowledge
+    //  ?b: no increment (?)
+    // 00b: source path address length
+
+    const uint8_t reply_instruction = command_instruction & (0xFF - 0x43);
+
+    replybuf[0] = this->source_logical_address;
+    replybuf[1] = RMAP_PROTOCOL_ID;
+    replybuf[1] = reply_instruction;
+    replybuf[3] = status;
+    replybuf[4] = this->destination_logical_address;
+    replybuf[5] = cargo[ 5+n];
+    replybuf[6] = cargo[ 6+n];
+    replybuf[7] = rmap_calculate_crc(replybuf, 7);
+
+    *replylen = 8;
+}
 extern "C" {
 
 // #define DEBUG
