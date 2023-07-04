@@ -3,6 +3,26 @@
 rm -fr outdir
 mkdir -p outdir
 
+# SPP / PCAP => { SPP / RMAP Write Command (with reply) / PCAP } => {RMAP Write Reply / PCAP}
+
+echo ./test-client2server-rmapw-rpl2.sh 
+./test-client2server-rmapw-rpl2.sh
+
+diff expected/test-rpl-out.pcap outdir/test-rpl-out.pcap
+if [ $? -ne 0 ]; then
+    echo test failed
+    exit
+fi
+
+echo ./test-server2client-rmapw-rpl2.sh 
+./test-server2client-rmapw-rpl2.sh
+
+diff expected/test-rpl-out.pcap outdir/test-rpl-out.pcap
+if [ $? -ne 0 ]; then
+    echo test failed
+    exit
+fi
+
 # SPP / PCAP => { SPP / RMAP Write Command (with reply) / PCAP } => RMAP Write Reply / PCAP
 
 echo ./test-client2server-rmapw-rpl.sh 

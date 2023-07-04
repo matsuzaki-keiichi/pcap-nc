@@ -19,16 +19,16 @@ size_t pcapnc_fread(void *buf, size_t size, size_t nmemb, FILE *fp){
   size_t remaining_nmemb = nmemb;
   ssize_t ret;
 
-  while ( remaining_nmemb > 0 ) {
-    // debug_fprintf(stderr, "remaining_nmemb=%zu\n", remaining_nmemb);
-	    
+  while ( remaining_nmemb > 0 ) {	    
     ret = fread(buf, size, remaining_nmemb, fp);
 
     if ( ret > 0 ) {
       remaining_nmemb -= ret;
     } else {
+      //fprintf(stderr, "remaining_nmemb=%zu\n", remaining_nmemb);
       if ( feof(fp) ) break;
       if ( ferror(fp) ) break;
+      //fprintf(stderr, "sleep 1\n");
       sleep(READ_RETRY);
     }
   }

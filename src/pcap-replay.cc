@@ -58,11 +58,11 @@ static struct option long_options[] = {
   { NULL,      0,                 NULL,  0 }
 };
 
-static double      param_wait_time     = 0.0;
-static double      param_interval_sec  = 0.0;
-static std::string param_config        = ""; 
-static std::string param_channel       = ""; 
-static int         param_original_time = 0;
+static double      param_wait_time     =  0.0;
+static double      param_interval_sec  = -1.0;
+static std::string param_config        =  ""; 
+static std::string param_channel       =  ""; 
+static int         param_original_time =  0;
 
 int main(int argc, char *argv[])
 {
@@ -120,8 +120,11 @@ int main(int argc, char *argv[])
     rmapw.read_json(param_config.c_str(), param_channel.c_str());
   }
 
+//// int i=0;
   while(1){
+///// fprintf(stderr,"read=%d start", i++);
     ret = pcapnc_fread(inbuf, 1, PACKET_HEADER_SIZE, stdin);
+//// fprintf(stderr," end\n");
     if ( ret < PACKET_HEADER_SIZE ) {
       pcapnc_logerr("Unexpected end of file (partial packet header).\n");
       return ERROR_5;
@@ -188,10 +191,12 @@ int main(int argc, char *argv[])
     } else {
       const double tdiff = curr_time - prev_time;
 
-      if ( param_interval_sec == 0.0 ) {
+      if        ( param_interval_sec < 0.0 ) {
 	      s3sim_sleep(tdiff);
-      } else {
+      } else if ( param_interval_sec > 0.0 ) {
       	s3sim_sleep(param_interval_sec);
+      } else {
+        // do not sleep
       }
     }
     debug_fprintf(stderr, "curr_time=%f\n", curr_time);

@@ -33,5 +33,5 @@ do
     shift
 done
 
-cat $progdir/head-$linktype.pcap -
+stdbuf -i 0 -o 0 cat $progdir/head-$linktype.pcap -
 							    

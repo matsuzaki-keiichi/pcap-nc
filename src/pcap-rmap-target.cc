@@ -74,7 +74,7 @@ int main(int argc, char *argv[])
     0x00, 0x00, 0x00, 0x09, // Time Zone
     0x00, 0x00, 0x00, 0x00, // Sigfig
     0x00, 0x01, 0x00, 0x12, // Scap Len
-    0x00, 0x00, 0x00, 0x94  // Link Type (0x94=148: DLT_USER0 = Space Packet)
+    0x00, 0x00, 0x00, 0x95  // Link Type (0x95=149: DLT_USER2 = SpaceWire)
   };
 
   ssize_t ret;
@@ -87,17 +87,25 @@ int main(int argc, char *argv[])
 
   ////
 
-  ret = pcapnc_fwrite(output_pcap_header, 1, PCAP_HEADER_SIZE, stdout);
-  if ( ret < PCAP_HEADER_SIZE ) {
-    pcapnc_logerr("Write Error (PCAP Header).\n");
-    return ERROR_5;
-  }
-
   class rmap_write_channel rmapw;
   if ( use_rmapw ) {
     rmapw.read_json(param_config.c_str(), param_channel.c_str());
 
     if ( rmapw.instruction & RMAP_INST_REPLY ) use_write_reply = 1;
+  }
+
+  uint8_t linktype;
+  if ( use_rmapw && use_write_reply ) {
+    linktype = 0x95; // SpaceWire
+  } else {
+    linktype = 0x94; // SpacePacket
+  }
+  output_pcap_header[23] = linktype;
+
+  ret = pcapnc_fwrite(output_pcap_header, 1, PCAP_HEADER_SIZE, stdout);
+  if ( ret < PCAP_HEADER_SIZE ) {
+    pcapnc_logerr("Write Error (PCAP Header).\n");
+    return ERROR_5;
   }
 
   while(1){

@@ -113,7 +113,7 @@ done
 sleep $SLEEP
 
 if [[ "$param_no_stdin" -ne 0 ]]; then	
-	                                                     stdbuf -i 0 -o 0 nc -q 0 -w 10 -N $args_nc | stdbuf -i 0 $progdir/pcap-store $args_store
+	                                                     stdbuf -i 0 -o 0 nc -q 0 -w 10 -N $args_nc | stdbuf -i 0 -o 0 $progdir/pcap-store $args_store
 else
-	stdbuf -i 0 -o 0 $progdir/pcap-replay $args_replay | stdbuf -i 0 -o 0 nc -q 0 -w 10 -N $args_nc | stdbuf -i 0 $progdir/pcap-store $args_store
+	stdbuf -i 0 -o 0 $progdir/pcap-replay $args_replay | stdbuf -i 0 -o 0 nc -q 0 -w 10 -N $args_nc | stdbuf -i 0 -o 0 $progdir/pcap-store $args_store
 fi
