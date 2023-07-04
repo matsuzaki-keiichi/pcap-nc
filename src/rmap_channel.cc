@@ -287,11 +287,10 @@ void rmap_write_channel::recv(const uint8_t recvbuf[], size_t recvsize, const ui
 }
 
 void rmap_write_channel::reply(const uint8_t recvbuf[], size_t recvsize, uint8_t replybuf[], size_t *replylen){
-    const uint8_t *const cargo = recvbuf;
 
-    const uint8_t command_instruction = cargo[2];
+    const uint8_t command_instruction = recvbuf[2];
     const int source_path_address_length = command_instruction & 0x03; 
-    const int n = source_path_address_length << 2;
+    const size_t n = source_path_address_length << 2;
     const uint8_t status = 0; // TODO implement status ??
 
     // Wrire Reply (e.g. 0x28)
@@ -306,16 +305,25 @@ void rmap_write_channel::reply(const uint8_t recvbuf[], size_t recvsize, uint8_t
 
     const uint8_t reply_instruction = command_instruction & (0xFF - 0x43);
 
-    replybuf[0] = this->source_logical_address;
-    replybuf[1] = RMAP_PROTOCOL_ID;
-    replybuf[1] = reply_instruction;
-    replybuf[3] = status;
-    replybuf[4] = this->destination_logical_address;
-    replybuf[5] = cargo[ 5+n];
-    replybuf[6] = cargo[ 6+n];
-    replybuf[7] = rmap_calculate_crc(replybuf, 7);
+    size_t m=0;
+    for ( size_t i=0; i<n ; i++ ){
+        uint8_t ad = recvbuf[4+i];
+        if ( ad == 0 && i != n-1 ) continue;
+        replybuf[m++] = ad;
+    }
 
-    *replylen = 8;
+    uint8_t *const cargo = replybuf + m;
+
+    cargo[0] = this->source_logical_address;
+    cargo[1] = RMAP_PROTOCOL_ID;
+    cargo[2] = reply_instruction;
+    cargo[3] = status;
+    cargo[4] = this->destination_logical_address;
+    cargo[5] = recvbuf[ 5+n];
+    cargo[6] = recvbuf[ 6+n];
+    cargo[7] = rmap_calculate_crc(cargo, 7);
+
+    *replylen = m+8;
 }
 extern "C" {
 

@@ -13,13 +13,13 @@
         },
         {
             "name":                        "channel2",
-            "description":                 "test channel for RMAP Write without Reply",
+            "description":                 "test channel for RMAP Write with Reply",
             "destination_path_address":    "0x14 0x13 0x11",
             "destination_logical_address": "0x90",
             "destination_key":             "0x6F",
             "source_path_address":         "0x11 0x13 0x14",
             "source_logical_address":      "0x91",
-            "instruction":                 "0x60",
+            "instruction":                 "0x68",
             "memory_address":              "0x456789ABCD"
         }
     ]
