@@ -1,5 +1,5 @@
-ALL=pcap-nc pcap-store pcap-replay head-diosatlm.pcap head-spp.pcap head-spw.pcap rmap-write
-MED=write_head
+ALL=pcap-nc pcap-store pcap-replay head-diosatlm.pcap head-spp.pcap head-spw.pcap pcap-rmap-target
+MED=write_head test-rmap
 
 all: ${ALL} ${MED}
 
@@ -9,11 +9,14 @@ pcap-nc: pcap-nc.bash
 pcap-store: pcap-store.bash
 	cp $< $@
 
-pcap-replay: pcap-replay.cc pcap-nc-util.c s3sim.c rmap_channel.cc rmap_channel.h
-	c++ -I rapidjson/include -o $@ $^ -lm
+pcap-replay: pcap-replay.cc pcap-nc-util.c s3sim.c rmap_channel.cc
+	c++ -Wall -I rapidjson/include -o $@ $^ -lm
 
-rmap-write: rmap-write.c pcap-nc-util.c s3sim.c 
-	cc -o $@ $^ -lm
+pcap-rmap-target: pcap-rmap-target.cc pcap-nc-util.c rmap_channel.cc
+	c++ -Wall -I rapidjson/include -o $@ $^
+
+test-rmap: test-rmap.cc  rmap_channel.cc	
+	c++ -I rapidjson/include -o $@ $^
 
 write_head: write_head.c
 	cc -o $@ $^

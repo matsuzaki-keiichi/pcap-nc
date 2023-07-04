@@ -97,10 +97,10 @@ int main(int argc, char *argv[])
     	fine_time   = U2P * (uint32_t)  tv.tv_usec;
     }
 
-    network_encode_uint32(buf+ 0, coarse_time);
-    network_encode_uint32(buf+ 4, fine_time);
-    network_encode_uint32(buf+ 8, caplen);
-    network_encode_uint32(buf+12, orglen);
+    pcapnc_network_encode_uint32(buf+ 0, coarse_time);
+    pcapnc_network_encode_uint32(buf+ 4, fine_time);
+    pcapnc_network_encode_uint32(buf+ 8, caplen);
+    pcapnc_network_encode_uint32(buf+12, orglen);
       
     ret = pcapnc_fwrite(buf, 1, PACKET_HEADER_SIZE+caplen, stdout);
 

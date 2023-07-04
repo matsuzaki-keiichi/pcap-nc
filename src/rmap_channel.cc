@@ -108,7 +108,7 @@ void rmap_write_channel::read_json(const char *file_name, const char *channel_na
     rapidjson::Document doc;
     doc.ParseStream(isw);
  
-    rapidjson::Value::MemberIterator attributeIterator = doc.FindMember( "channels" );
+//    rapidjson::Value::MemberIterator attributeIterator = doc.FindMember( "channels" );
     const rapidjson::Value& channels = doc[ "channels" ];
 
     for (rapidjson::Value::ConstValueIterator itr = channels.Begin(); itr != channels.End(); ++itr) {
@@ -120,8 +120,7 @@ void rmap_write_channel::read_json(const char *file_name, const char *channel_na
         this->num_dpa = read_hex_chars(channel, "destination_path_address", this->d_path_address, RMAP_MAX_NUM_PATH_ADDRESS);
         this->num_spa = read_hex_chars(channel, "source_path_address",      this->s_path_address, RMAP_MAX_NUM_PATH_ADDRESS);
 
-//      this->num_dpa_padding = (RMAP_MAX_NUM_PATH_ADDRESS - this->num_dpa) % 4;
-        this->num_dpa_padding = 0;
+        this->num_dpa_padding = (RMAP_MAX_NUM_PATH_ADDRESS - this->num_dpa) % 4;
         this->num_spa_padding = (RMAP_MAX_NUM_PATH_ADDRESS - this->num_spa) % 4;
 
         this->destination_logical_address = read_hex_uint8 (channel, "destination_logical_address");
@@ -154,30 +153,29 @@ void rmap_write_channel::read_json(const char *file_name, const char *channel_na
 
 #define INSTRUCTION 0x60
 
-static uint16_t transaction_id = 0x9999;
+void rmap_write_channel::send_witouht_ack(const uint8_t inbuf[], size_t insize, uint8_t sendbuf[], size_t *sendsize_p){
+    const int m = this->num_dpa;
+    const int n = this->num_spa + this->num_spa_padding;
 
-void rmap_write_channel::send_witouht_ack(const uint8_t inbuf[], size_t insize, uint8_t outbuf[], size_t *outsize){
-    const int m = this->num_dpa_padding + this->num_dpa;
-    const int n = this->num_spa_padding + this->num_spa;
+    const int source_path_address_length = n >> 2; 
+    const uint8_t instruction = (INSTRUCTION & 0xFC) | (source_path_address_length & 0x03);
 
-    for ( size_t i=0 ; i<this->num_dpa_padding ; i++ ) outbuf[i] = 0x00;
-    for ( size_t i=0 ; i<this->num_dpa ; i++ ) outbuf[this->num_dpa_padding+i] = this->d_path_address[i];
+    memcpy(sendbuf, this->d_path_address, this->num_dpa);
 
-    uint8_t *const cargo = outbuf + m;
+    uint8_t *const cargo = sendbuf + m;
 
     cargo[ 0] = this->destination_logical_address;
     cargo[ 1] = RMAP_PROTOCOL_ID;
-    cargo[ 2] = INSTRUCTION; // instruction
+    cargo[ 2] = instruction;
     cargo[ 3] = this->destination_key;
 
     // source path address
-    for ( size_t i=0 ; i<this->num_spa_padding ; i++ ) cargo[4+i] = 0x00;
-    for ( size_t i=0 ; i<this->num_spa ; i++ ) cargo[4+this->num_spa_padding+i] = this->s_path_address[i];
-    cargo[ 2] = (cargo[ 2] & 0xFC) | ((n/4) & 0x03); // source path address length
+    memset(cargo+4, 0, this->num_spa_padding);
+    memcpy(cargo+4+this->num_spa_padding, this->s_path_address, this->num_spa);
 
     cargo[ 4+n] = this->source_logical_address;
-    cargo[ 5+n] = (transaction_id      >>  8) & 0xFF;
-    cargo[ 6+n] = (transaction_id      >>  0) & 0xFF;
+    cargo[ 5+n] = (this->transaction_id>>  8) & 0xFF;
+    cargo[ 6+n] = (this->transaction_id>>  0) & 0xFF;
     cargo[ 7+n] = (this->write_address >> 32) & 0xFF;
     cargo[ 8+n] = (this->write_address >> 24) & 0xFF;
     cargo[ 9+n] = (this->write_address >> 16) & 0xFF;
@@ -188,10 +186,10 @@ void rmap_write_channel::send_witouht_ack(const uint8_t inbuf[], size_t insize, 
     cargo[14+n] = (insize              >>  0) & 0xFF;
     cargo[15+n] = rmap_calculate_crc(cargo, 15+n);
 
-    size_t outsize0 = 16+m+n+insize+1;
+    size_t sendsize0 = 16+m+n+insize+1;
 
-    if ( outsize0 > *outsize ) {
-        fprintf(stderr, "output size (%zu) exceeds the buffer size (%zu).\n", outsize0, *outsize);
+    if ( sendsize0 > *sendsize_p ) {
+        fprintf(stderr, "output size (%zu) exceeds the buffer size (%zu).\n", sendsize0, *sendsize_p);
         exit(1);        
     }
 
@@ -199,9 +197,87 @@ void rmap_write_channel::send_witouht_ack(const uint8_t inbuf[], size_t insize, 
     memcpy(data, inbuf, insize); // TODO boundary chcek
     data[insize] = rmap_calculate_crc(data, insize);
 
-    *outsize = outsize0;
+    *sendsize_p = sendsize0;
     
-    transaction_id = transaction_id + 1;
+    this->transaction_id = this->transaction_id + 1;
+}
+
+void rmap_write_channel::recv(const uint8_t recvbuf[], size_t recvsize, const uint8_t **outbuf_p, size_t *outsize_p){
+    const uint8_t *const cargo = recvbuf;
+
+    const uint8_t instruction = cargo[2];
+    const int source_path_address_length = instruction & 0x03; 
+    const int n = source_path_address_length << 2;
+
+    if ( cargo[0] != this->destination_logical_address ){
+        fprintf(stderr, "Destination Logical Address is not 0x%02x but 0x%02x.\n", 
+            this->destination_logical_address, cargo[0]);
+        return;       
+    }
+
+    if ( cargo[1] != RMAP_PROTOCOL_ID ){
+        fprintf(stderr, "Protocol ID is not 0x%02x but 0x%02x.\n", 
+            RMAP_PROTOCOL_ID, cargo[1]);
+        return;       
+    }
+
+    const uint8_t header_crc = rmap_calculate_crc(cargo, 15+n);
+    if ( cargo[15+n] != header_crc ){
+        fprintf(stderr, "Header CRC Error.\n");
+        return;       
+    }
+
+    if ( (instruction & 0xFC) != INSTRUCTION ) {
+        fprintf(stderr, "Instruction is not 0x%02x but 0x%02x.\n", 
+            INSTRUCTION, instruction & 0xFC);
+        return;       
+    }
+
+    if ( cargo[3] != this->destination_key ){
+        fprintf(stderr, "Protocol ID is not 0x%02x but 0x%02x.\n", 
+            this->destination_key, cargo[3]);
+        return;       
+    }
+
+    const uint64_t address = (((uint64_t) cargo[ 7+n]) << 32)
+        +                    (((uint64_t) cargo[ 8+n]) << 24)
+        +                    (((uint64_t) cargo[ 9+n]) << 16)
+        +                    (((uint64_t) cargo[10+n]) <<  8) 
+        +                    (((uint64_t) cargo[11+n]) <<  0);
+    if ( address != this->write_address ){
+        fprintf(stderr, "Write Address is not 0x%10" PRIx64 " but 0x%10" PRIx64 ".\n", 
+            this->write_address, address);
+        return;       
+    }
+
+    if ( cargo[4+n] != this->source_logical_address ){
+        fprintf(stderr, "Source Logical Address is not 0x%02x but 0x%02x.\n", 
+            this->source_logical_address, cargo[4+n]);
+        return;       
+    }
+#if 0
+    const uint16_t transaction_id =        (cargo[ 5+n]  <<  8) 
+        +                                  (cargo[ 6+n]  <<  0);
+#endif
+    const size_t   data_length = (((size_t) cargo[12+n]) << 16)
+        +                        (((size_t) cargo[13+n]) <<  8) 
+        +                        (((size_t) cargo[14+n]) <<  0);
+
+    if ( 16+n+data_length+1 != recvsize ){
+        fprintf(stderr, "Data Length (%zu) is not consistent received packet size (%zu).\n", 
+            data_length, recvsize);
+        return;       
+    }
+
+    const uint8_t *const data = cargo + 16 + n;
+    const uint8_t data_crc = rmap_calculate_crc(data, data_length);
+    if ( data[data_length] != data_crc ){
+        fprintf(stderr, "Data CRC Error.\n");
+        return;       
+    }
+
+    *outbuf_p  = data;
+    *outsize_p = data_length;
 }
 
 extern "C" {
@@ -247,11 +323,19 @@ static const uint8_t RMAP_CRC_TABLE[] = {
 };
 
 uint8_t rmap_calculate_crc(const uint8_t data[], size_t length) {
-  uint8_t crc = 0x00;
-  for (size_t i = 0; i < length; i++) {
-    crc = RMAP_CRC_TABLE[(crc ^ data[i]) & 0xff];
-  }
-  return crc;
+    uint8_t crc = 0x00;
+    for (size_t i = 0; i < length; i++) {
+        crc = RMAP_CRC_TABLE[(crc ^ data[i]) & 0xff];
+    }
+    return crc;
+}
+
+size_t rmap_num_path_address(const uint8_t inbuf[], size_t insize){
+    size_t i;
+    for ( i=0; i<insize; i++ ){
+        if ( inbuf[i] >= 32 ) break;      
+    }
+    return i;
 }
 
 }

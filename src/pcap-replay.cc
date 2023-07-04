@@ -20,6 +20,14 @@
 #include "pcap-nc-util.h"
 #include "s3sim.h"
 
+// #define DEBUG
+
+#ifdef DEBUG
+#define debug_fprintf fprintf
+#else
+#define debug_fprintf
+#endif
+
 #define PCAP_HEADER_SIZE    24
 #define PACKET_HEADER_SIZE  16
 #define PACKET_DATA_MAX_SIZE 0x10006
@@ -40,8 +48,6 @@
 #define OPTSTRING ""
 
 static int use_rmapw = 0;
-
-static int verbose_flag = 0;
 
 static struct option long_options[] = {
   {"after",         required_argument, NULL, 'a'},
@@ -89,7 +95,7 @@ int main(int argc, char *argv[])
     // TODO fix tentative implementation.
   }
 
-  debug_fprintf(stderr, "param_wait_time=%u\n", param_wait_time);
+  debug_fprintf(stderr, "param_wait_time=%f\n", param_wait_time);
 
   ////
     
@@ -98,38 +104,13 @@ int main(int argc, char *argv[])
 
   ssize_t ret;
 
-  ret = pcapnc_fread(inbuf, 1, PCAP_HEADER_SIZE, stdin);
-  if ( ret == 0 ) {
-    fprintf(stderr, "No input (missing header).\n");
-    return ERROR_1;
-  } else if ( ret < PCAP_HEADER_SIZE ) {
-    fprintf(stderr, "File size smaller than the PCAP Header.\n");
-    return ERROR_2;
-  }
+  ////
 
-  const uint32_t magic_number = *(uint32_t*)&(inbuf[ 0]);
-  const uint32_t magic_number_swap = bswap_32(magic_number);
-  double finetime_unit;
-  uint32_t u2p;
-  int exec_bswap;
-  
-  if      ( magic_number      == MAGIC_NUMBER_USEC ) { finetime_unit = 1e-6; u2p = 1;    exec_bswap = 0; }
-  else if ( magic_number_swap == MAGIC_NUMBER_USEC ) { finetime_unit = 1e-6; u2p = 1;    exec_bswap = 1; }
-  else if ( magic_number      == MAGIC_NUMBER_NSEC ) { finetime_unit = 1e-9; u2p = 1000; exec_bswap = 0; }
-  else if ( magic_number_swap == MAGIC_NUMBER_NSEC ) { finetime_unit = 1e-9; u2p = 1000; exec_bswap = 1; }
-  else {
-    fprintf(stderr, "File is not a PCAP file (bad magic number).\n");
-    return ERROR_3;
-  }
+  pcap_file ip;
 
-  const uint32_t major_version = extract_uint16(exec_bswap, inbuf+4 );
-  const uint32_t minor_version = extract_uint16(exec_bswap, inbuf+6 );
+  const int i_ret = ip.read_head(stdin); if ( i_ret ) return i_ret;
 
-  if ( major_version != PCAP_MAJOR_VERSION || minor_version != PCAP_MINOR_VERSION ) {
-    fprintf(stderr, "File is not a PCAP file (unexpected version number=%" PRId16 ".%" PRId16 ").\n",
-	    major_version, minor_version);
-    return ERROR_4;
-  }
+  ////
 
   double prev_time = -1;
   
@@ -142,24 +123,24 @@ int main(int argc, char *argv[])
   while(1){
     ret = pcapnc_fread(inbuf, 1, PACKET_HEADER_SIZE, stdin);
     if ( ret < PACKET_HEADER_SIZE ) {
-      fprintf(stderr, "Unexpected end of file (partial packet header).\n");
+      pcapnc_logerr("Unexpected end of file (partial packet header).\n");
       return ERROR_5;
     }
-    const uint32_t coarse_time = extract_uint32(exec_bswap, inbuf+ 0);
-    const uint32_t fine_time   = extract_uint32(exec_bswap, inbuf+ 4);
-    const uint32_t caplen      = extract_uint32(exec_bswap, inbuf+ 8);
-    const uint32_t orglen      = extract_uint32(exec_bswap, inbuf+12);
+    const uint32_t coarse_time = ip.extract_uint32(inbuf+ 0);
+    const uint32_t fine_time   = ip.extract_uint32(inbuf+ 4);
+    const uint32_t caplen      = ip.extract_uint32(inbuf+ 8);
+//  const uint32_t orglen      = ip.extract_uint32(inbuf+12);
 
-    double curr_time = coarse_time + fine_time * finetime_unit;
+    double curr_time = coarse_time + fine_time * ip.finetime_unit;
 
     if ( caplen > PACKET_DATA_MAX_SIZE ) {
-      fprintf(stderr, "Unexpected packet header (caplen(=%" PRIx32 ") too long).\n", caplen);
+      pcapnc_logerr("Unexpected packet header (caplen(=%" PRIx32 ") too long).\n", caplen);
       return ERROR_6;
     }
     
     ret = pcapnc_fread(&(inbuf[PACKET_HEADER_SIZE]), 1, caplen, stdin);
     if ( ret < caplen ) {
-      fprintf(stderr, "Unexpected end of file (partial packet data).\n");
+      pcapnc_logerr("Unexpected end of file (partial packet data).\n");
       return ERROR_7;
     }
 
@@ -171,15 +152,15 @@ int main(int argc, char *argv[])
       const int iret = gettimeofday(&tv, NULL);
 
       if ( iret == 0 ) {
-      	const uint32_t now_coarse_time =       (uint32_t)  tv.tv_sec;
-      	const uint32_t now_fine_time   = u2p * (uint32_t)  tv.tv_usec;
+      	const uint32_t now_coarse_time =          (uint32_t)  tv.tv_sec;
+      	const uint32_t now_fine_time   = ip.u2p * (uint32_t)  tv.tv_usec;
 	
-      	network_encode_uint32(outbuf+ 0, now_coarse_time);
-      	network_encode_uint32(outbuf+ 4, now_fine_time);
+      	pcapnc_network_encode_uint32(outbuf+ 0, now_coarse_time);
+      	pcapnc_network_encode_uint32(outbuf+ 4, now_fine_time);
       }
     } else {
-      network_encode_uint32(outbuf+ 0, coarse_time);
-      network_encode_uint32(outbuf+ 4, fine_time);
+      pcapnc_network_encode_uint32(outbuf+ 0, coarse_time);
+      pcapnc_network_encode_uint32(outbuf+ 4, fine_time);
     }
 
     size_t outlen;
@@ -197,8 +178,8 @@ int main(int argc, char *argv[])
       outlen = caplen;
     }
 
-    network_encode_uint32(outbuf+ 8, outlen);
-    network_encode_uint32(outbuf+12, outlen);
+    pcapnc_network_encode_uint32(outbuf+ 8, outlen);
+    pcapnc_network_encode_uint32(outbuf+12, outlen);
 
     if ( prev_time < 0 ) {
 
