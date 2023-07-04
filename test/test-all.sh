@@ -3,7 +3,27 @@
 rm -fr outdir
 mkdir -p outdir
 
-# SPP / PCAP => SPP / RMAP Write (without reply) / PCAP => SPP / PCAP
+# SPP / PCAP => { SPP / RMAP Write Command (with reply) / PCAP } => RMAP Write Reply / PCAP
+
+echo ./test-client2server-rmapw-rpl.sh 
+./test-client2server-rmapw-rpl.sh
+
+diff expected/test-rpl-out.pcap outdir/test-rpl-out.pcap
+if [ $? -ne 0 ]; then
+    echo test failed
+    exit
+fi
+
+echo ./test-server2client-rmapw-rpl.sh 
+./test-server2client-rmapw-rpl.sh
+
+diff expected/test-rpl-out.pcap outdir/test-rpl-out.pcap
+if [ $? -ne 0 ]; then
+    echo test failed
+    exit
+fi
+
+# SPP / PCAP => { SPP / RMAP Write Command (without reply) / PCAP } => SPP / PCAP
 
 echo ./test-client2server-rmapw-spp.sh 
 ./test-client2server-rmapw-spp.sh
@@ -23,7 +43,7 @@ if [ $? -ne 0 ]; then
     exit
 fi
 
-# SPP / PCAP => SPP / RMAP Write (without reply) / PCAP
+# SPP / PCAP => {SPP / RMAP Write Command (without reply) / PCAP} 
 
 echo ./test-client2server-rmapw.sh 
 ./test-client2server-rmapw.sh
@@ -43,7 +63,7 @@ if [ $? -ne 0 ]; then
     exit
 fi
 
-# SPP / PCAP
+# {SPP / PCAP}
 
 echo ./test-client2server.sh 
 ./test-client2server.sh

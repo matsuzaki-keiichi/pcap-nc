@@ -32,11 +32,14 @@ static std::string param_channel = "";
 
 static int use_rmapw = 0;
 
+#define RMAP_INST_REPLY  0x08
+
 int main(int argc, char *argv[])
 {
   //// parse options
   
-  int option_error = 0;
+  int option_error    = 0;
+  int use_write_reply = 0;
   
   while (1) {
 
@@ -93,6 +96,8 @@ int main(int argc, char *argv[])
   class rmap_write_channel rmapw;
   if ( use_rmapw ) {
     rmapw.read_json(param_config.c_str(), param_channel.c_str());
+
+    if ( rmapw.instruction & RMAP_INST_REPLY ) use_write_reply = 1;
   }
 
   while(1){
@@ -103,7 +108,7 @@ int main(int argc, char *argv[])
     }
 
     const uint32_t coarse_time = ip.extract_uint32(inbuf+ 0);
-    const uint32_t fine_time   = ip.extract_uint32(inbuf+ 4);
+    const uint32_t nano_sec    = ip.extract_uint32(inbuf+ 4) * ip.p2n;
     const uint32_t caplen      = ip.extract_uint32(inbuf+ 8);
 //  const uint32_t orglen      = ip.extract_uint32(inbuf+12);
 
@@ -118,27 +123,36 @@ int main(int argc, char *argv[])
       return ERROR_8;
     }
 
-    if ( use_rmapw ) {
+    if ( !use_rmapw ) {
+      ret = pcapnc_fwrite(inbuf,  1, PACKET_HEADER_SIZE+caplen, stdout);
+    } else {
+
       // simulate network
       const size_t num_path_address = rmap_num_path_address(inbuf + PACKET_HEADER_SIZE, caplen);
       const uint8_t *in_packet = inbuf + PACKET_HEADER_SIZE + num_path_address; 
       size_t inlen = ((size_t) caplen) - num_path_address;
-
-      // generate output
-      const uint8_t *out_packet; 
       size_t outlen;
 
-      rmapw.recv(in_packet, inlen, &out_packet, &outlen);
-      memcpy(outbuf+PACKET_HEADER_SIZE, out_packet, outlen);
+      // generate output
+      if ( use_write_reply ) {
+        uint8_t  replybuf[20]; outlen = 20;
+
+        rmapw.reply(in_packet, inlen, replybuf, &outlen); // generate RMAP Write Reply
+        memcpy(outbuf+PACKET_HEADER_SIZE, replybuf, outlen);
+
+      } else {
+        const uint8_t *out_packet; 
+
+        rmapw.recv(in_packet, inlen, &out_packet, &outlen); // extract Service Data Unit (e.g. Space Packet)
+        memcpy(outbuf+PACKET_HEADER_SIZE, out_packet, outlen);
+      } 
 
       pcapnc_network_encode_uint32(outbuf+ 0, coarse_time);
-      pcapnc_network_encode_uint32(outbuf+ 4, fine_time);
+      pcapnc_network_encode_uint32(outbuf+ 4, nano_sec);
       pcapnc_network_encode_uint32(outbuf+ 8, outlen);
       pcapnc_network_encode_uint32(outbuf+12, outlen);
 
       ret = pcapnc_fwrite(outbuf, 1, PACKET_HEADER_SIZE+outlen, stdout);
-    } else {
-      ret = pcapnc_fwrite(inbuf,  1, PACKET_HEADER_SIZE+caplen, stdout);
     }
   }
   
