@@ -106,6 +106,7 @@ int pcap_file::read_head(FILE *input){
     pcapnc_logerr("File is not a PCAP file (bad magic number).\n");
     return ERROR_3;
   }
+  this->p2n = 1000 / this->u2p;
 
   const uint32_t major_version = pcapnc_extract_uint16(exec_bswap, inbuf+4 );
   const uint32_t minor_version = pcapnc_extract_uint16(exec_bswap, inbuf+6 );

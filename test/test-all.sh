@@ -6,9 +6,18 @@ mkdir -p outdir
 # SPP / PCAP => SPP / RMAP Write (without reply) / PCAP => SPP / PCAP
 
 echo ./test-client2server-rmapw-spp.sh 
-#./test-client2server-rmapw-spp.sh
+./test-client2server-rmapw-spp.sh
 
-#diff expected/test-rmapw-spp-out.pcap outdir/test-spp-out.pcap
+diff expected/test-spp-out.pcap outdir/test-spp-out.pcap
+if [ $? -ne 0 ]; then
+    echo test failed
+    exit
+fi
+
+echo ./test-server2client-rmapw-spp.sh 
+./test-server2client-rmapw-spp.sh
+
+diff expected/test-spp-out.pcap outdir/test-spp-out.pcap
 if [ $? -ne 0 ]; then
     echo test failed
     exit

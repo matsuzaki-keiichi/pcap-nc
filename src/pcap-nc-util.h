@@ -17,6 +17,7 @@ class pcap_file {
   public:
   double finetime_unit;
   uint32_t u2p;
+  uint32_t p2n;
   int exec_bswap;
 
   int read_head(FILE *input);
