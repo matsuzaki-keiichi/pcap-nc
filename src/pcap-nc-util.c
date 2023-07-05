@@ -26,19 +26,19 @@ void pcapnc_unset_stdbuf(){
   if ( ret != 0 ) pcapnc_logerr("Failed to Unset stdout buffer.\n");
 }
 
-size_t pcapnc_fread(void *buf, size_t size, size_t nmemb, FILE *fp){
+size_t pcap_file::read(void *buf, size_t size, size_t nmemb){
   size_t remaining_nmemb = nmemb;
   ssize_t ret;
 
   while ( remaining_nmemb > 0 ) {	    
-    ret = fread(buf, size, remaining_nmemb, fp);
+    ret = fread(buf, size, remaining_nmemb, this->rp);
 
     if ( ret > 0 ) {
       remaining_nmemb -= ret;
     } else {
       //fprintf(stderr, "remaining_nmemb=%zu\n", remaining_nmemb);
-      if ( feof(fp) ) break;
-      if ( ferror(fp) ) break;
+      if ( feof(this->rp) ) break;
+      if ( ferror(this->rp) ) break;
       //fprintf(stderr, "sleep 1\n");
       sleep(READ_RETRY);
     }
@@ -93,11 +93,15 @@ uint32_t pcapnc_network_decode_uint32(void *ptr){
 #define ERROR_2 2
 #define ERROR_3 3
 #define ERROR_4 4
+#define ERROR_5 5
 
 int pcap_file::read_head(FILE *input){
+
+  this->rp = input;
+
   uint8_t inbuf[PCAP_HEADER_SIZE];
 
-  ssize_t ret = pcapnc_fread(inbuf, 1, PCAP_HEADER_SIZE, input);
+  ssize_t ret = this->read(inbuf, 1, PCAP_HEADER_SIZE);
   if ( ret == 0 ) {
     pcapnc_logerr("No input (missing header).\n");
     return ERROR_1;
@@ -128,6 +132,16 @@ int pcap_file::read_head(FILE *input){
     return ERROR_4;
   }
   return 0;
+}
+
+int pcap_file::read_head(const char *filename){
+  FILE *rp = fopen(filename, "r");
+  if ( rp == NULL ) {
+    pcapnc_logerr("Input file (%s) open failed.\n", filename);
+    return ERROR_5;
+  }
+
+  return pcap_file::read_head(rp);    
 }
 
 uint16_t pcap_file::extract_uint16(void *ptr){

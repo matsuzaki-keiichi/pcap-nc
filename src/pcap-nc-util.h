@@ -2,7 +2,6 @@
 #include <stdint.h>
 
 void   pcapnc_unset_stdbuf();
-size_t pcapnc_fread(void *buf, size_t size, size_t nmemb, FILE *fp);
 size_t pcapnc_fwrite(const void *buf, size_t size, size_t nmemb, FILE *fp);
 
 uint32_t pcapnc_extract_uint32(int exec_bswap, void *ptr);
@@ -21,7 +20,15 @@ class pcap_file {
   uint32_t p2n;
   int exec_bswap;
 
+
   int read_head(FILE *input);
+  int read_head(const char *filename);
+
+  size_t read(void *buf, size_t size, size_t nmemb);
+
   uint16_t extract_uint16(void *ptr);
   uint32_t extract_uint32(void *ptr);
+
+  private:
+  FILE *rp;
 };

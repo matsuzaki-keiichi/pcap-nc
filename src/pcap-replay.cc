@@ -55,14 +55,20 @@ static struct option long_options[] = {
   {"channel",       required_argument, NULL, 'n'},
   {"interval",      required_argument, NULL, 'i'},
   {"original-time",       no_argument, NULL, 'o'},
-  { NULL,      0,                 NULL,  0 }
+  {"receive-reply", required_argument, NULL, 'r'},
+  { NULL,                           0, NULL,  0 }
 };
 
 static double      param_wait_time     =  0.0;
 static double      param_interval_sec  = -1.0;
 static std::string param_config        =  ""; 
 static std::string param_channel       =  ""; 
+static std::string param_replyfile     =  ""; 
 static int         param_original_time =  0;
+
+FILE *rp = NULL;
+
+#define PROGNAME "pcap-replay: "
 
 int main(int argc, char *argv[])
 {
@@ -80,11 +86,12 @@ int main(int argc, char *argv[])
     if ( c == -1 ) break;
     
     switch (c) {
-    case 'a': param_wait_time      = atof(optarg); if (param_wait_time    < 0.0) param_wait_time    = 0.0; break;
-    case 'c': param_config  = std::string(optarg); break;
-    case 'n': param_channel = std::string(optarg); break;
-    case 'i': param_interval_sec   = atof(optarg); if (param_interval_sec < 0.0) param_interval_sec = 0.0; break;
-    case 'o': param_original_time  = 1; break;
+    case 'a': param_wait_time        = atof(optarg); if (param_wait_time    < 0.0) param_wait_time    = 0.0; break;
+    case 'c': param_config    = std::string(optarg); break;
+    case 'n': param_channel   = std::string(optarg); break;
+    case 'i': param_interval_sec     = atof(optarg); if (param_interval_sec < 0.0) param_interval_sec = 0.0; break;
+    case 'o': param_original_time    = 1; break;
+    case 'r': param_replyfile = std::string(optarg); break;
     default: option_error=1; break;
     }
   }
@@ -95,6 +102,11 @@ int main(int argc, char *argv[])
   if ( param_config != "" && param_channel != "" ){
     use_rmapw = 1;
     // TODO fix tentative implementation.
+  }
+
+  pcap_file lp;
+  if ( param_replyfile != ""  ){
+    const int r_ret = lp.read_head(param_replyfile.c_str()); if ( r_ret ) return r_ret;
   }
 
   debug_fprintf(stderr, "param_wait_time=%f\n", param_wait_time);
@@ -125,13 +137,13 @@ int main(int argc, char *argv[])
 //// int i=0;
   while(1){
 ///// fprintf(stderr,"read=%d start", i++);
-    ret = pcapnc_fread(inbuf, 1, PACKET_HEADER_SIZE, stdin);
+    ret = ip.read(inbuf, 1, PACKET_HEADER_SIZE);
 //// fprintf(stderr," end\n");
     if        ( ret == 0 ) {
-      pcapnc_logerr("End of file.\n");
+      pcapnc_logerr(PROGNAME "End of file.\n");
       return 0;
     } else if ( ret < PACKET_HEADER_SIZE ) {
-      pcapnc_logerr("Unexpected end of file (partial packet header).\n");
+      pcapnc_logerr(PROGNAME "Unexpected end of file (partial packet header).\n");
       return ERROR_5;
     }
     const uint32_t coarse_time = ip.extract_uint32(inbuf+ 0);
@@ -142,13 +154,13 @@ int main(int argc, char *argv[])
     double curr_time = coarse_time + fine_time * ip.finetime_unit;
 
     if ( caplen > PACKET_DATA_MAX_SIZE ) {
-      pcapnc_logerr("Unexpected packet header (caplen(=%" PRIx32 ") too long).\n", caplen);
+      pcapnc_logerr(PROGNAME "Unexpected packet header (caplen(=%" PRIx32 ") too long).\n", caplen);
       return ERROR_6;
     }
     
-    ret = pcapnc_fread(&(inbuf[PACKET_HEADER_SIZE]), 1, caplen, stdin);
+    ret = ip.read(&(inbuf[PACKET_HEADER_SIZE]), 1, caplen);
     if ( ret < caplen ) {
-      pcapnc_logerr("Unexpected end of file (partial packet data).\n");
+      pcapnc_logerr(PROGNAME "Unexpected end of file (partial packet data).\n");
       return ERROR_7;
     }
 

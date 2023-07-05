@@ -34,6 +34,8 @@ static int use_rmapw = 0;
 
 #define RMAP_INST_REPLY  0x08
 
+#define PROGNAME "pcap-rmap-target: "
+
 int main(int argc, char *argv[])
 {
   pcapnc_unset_stdbuf();
@@ -106,14 +108,17 @@ int main(int argc, char *argv[])
 
   ret = pcapnc_fwrite(output_pcap_header, 1, PCAP_HEADER_SIZE, stdout);
   if ( ret < PCAP_HEADER_SIZE ) {
-    pcapnc_logerr("Write Error (PCAP Header).\n");
+    pcapnc_logerr(PROGNAME "Write Error (PCAP Header).\n");
     return ERROR_5;
   }
 
   while(1){
-    ret = pcapnc_fread(inbuf, 1, PACKET_HEADER_SIZE, stdin);
-    if ( ret < PACKET_HEADER_SIZE ) {
-      pcapnc_logerr("Unexpected end of input (partial packet header).\n");
+    ret = ip.read(inbuf, 1, PACKET_HEADER_SIZE);
+    if       ( ret == 0 ) {
+      pcapnc_logerr(PROGNAME "End of input.\n");
+      return ERROR_6;
+    } else if ( ret < PACKET_HEADER_SIZE ) {
+      pcapnc_logerr(PROGNAME "Unexpected end of input (partial packet header).\n");
       return ERROR_6;
     }
 
@@ -123,13 +128,13 @@ int main(int argc, char *argv[])
 //  const uint32_t orglen      = ip.extract_uint32(inbuf+12);
 
     if ( caplen > PACKET_DATA_MAX_SIZE ) {
-      pcapnc_logerr("Unexpected packet header (caplen(=%" PRIx32 ") too long).\n", caplen);
+      pcapnc_logerr(PROGNAME "Unexpected packet header (caplen(=%" PRIx32 ") too long).\n", caplen);
       return ERROR_7;
     }
     
-    ret = pcapnc_fread(&(inbuf[PACKET_HEADER_SIZE]), 1, caplen, stdin);
+    ret = ip.read(&(inbuf[PACKET_HEADER_SIZE]), 1, caplen);
     if ( ret < caplen ) {
-      pcapnc_logerr("Unexpected end of file (partial packet data).\n");
+      pcapnc_logerr(PROGNAME "Unexpected end of input (partial packet data).\n");
       return ERROR_8;
     }
 
