@@ -14,6 +14,16 @@ function do_test(){
 rm -fr outdir
 mkdir -p outdir
 
+# case 6.
+#                   Initiator         network         Target
+# SPP/PCAP => SPP/RMAPWC/PCAP => {SPP/RMAPWC/PCAP} => SPP/RMAPWC/PCAP
+#  (check) <=     RMAPWR/PCAP <=     {RMAPWR/PCAP} <=     RMAPWR/PCAP
+
+echo ./test-client2server-rmapw-rpl3.sh 
+./test-client2server-rmapw-rpl3.sh
+echo ./test-server2client-rmapw-rpl3.sh 
+./test-server2client-rmapw-rpl3.sh 
+
 # case 5.
 #                   Initiator         network         Target
 # SPP/PCAP => SPP/RMAPWC/PCAP => {SPP/RMAPWC/PCAP} => SPP/RMAPWC/PCAP

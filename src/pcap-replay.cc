@@ -47,7 +47,8 @@
 
 #define OPTSTRING ""
 
-static int use_rmapw = 0;
+static int use_rmapw  = 0;
+static int use_rmapwrt_rpl = 0;
 
 static struct option long_options[] = {
   {"after",         required_argument, NULL, 'a'},
@@ -107,6 +108,7 @@ int main(int argc, char *argv[])
   pcap_file lp;
   if ( param_replyfile != ""  ){
     const int r_ret = lp.read_head(param_replyfile.c_str()); if ( r_ret ) return r_ret;
+    use_rmapwrt_rpl = 1;
   }
 
   debug_fprintf(stderr, "param_wait_time=%f\n", param_wait_time);
@@ -140,7 +142,7 @@ int main(int argc, char *argv[])
     ret = ip.read(inbuf, 1, PACKET_HEADER_SIZE);
 //// fprintf(stderr," end\n");
     if        ( ret == 0 ) {
-      pcapnc_logerr(PROGNAME "End of file.\n");
+      // pcapnc_logerr(PROGNAME "End of file.\n");
       return 0;
     } else if ( ret < PACKET_HEADER_SIZE ) {
       pcapnc_logerr(PROGNAME "Unexpected end of file (partial packet header).\n");
@@ -219,6 +221,44 @@ int main(int argc, char *argv[])
     debug_fprintf(stderr, "curr_time=%f\n", curr_time);
 
     ret = pcapnc_fwrite(outbuf, 1, PACKET_HEADER_SIZE+outlen, stdout);
+
+    if ( use_rmapwrt_rpl ) {
+
+      ret = lp.read(inbuf, 1, PACKET_HEADER_SIZE);
+      if        ( ret == 0 ) {
+        // pcapnc_logerr(PROGNAME "End of input.\n");
+        return 0;
+      } else if ( ret < PACKET_HEADER_SIZE ) {
+        pcapnc_logerr(PROGNAME "Unexpected end of input (partial packet header).\n");
+        return ERROR_5;
+      }
+
+  //  const uint32_t coarse_time = lp.extract_uint32(inbuf+ 0);
+  //  const uint32_t fine_time   = lp.extract_uint32(inbuf+ 4);
+      const uint32_t caplen      = lp.extract_uint32(inbuf+ 8);
+  //  const uint32_t orglen      = lp.extract_uint32(inbuf+12);
+
+      if ( caplen > PACKET_DATA_MAX_SIZE ) {
+        pcapnc_logerr(PROGNAME "Unexpected packet header (caplen(=%" PRIx32 ") too long).\n", caplen);
+        return ERROR_6;
+      }
+
+      ret = lp.read(&(inbuf[PACKET_HEADER_SIZE]), 1, caplen);
+      if ( ret < caplen ) {
+        pcapnc_logerr(PROGNAME "Unexpected end of input (partial packet data).\n");
+        return ERROR_7;
+      }
+
+      // simulate network
+
+      const size_t num_path_address = rmap_num_path_address(inbuf + PACKET_HEADER_SIZE, caplen);
+      const uint8_t *retnbuf = inbuf + PACKET_HEADER_SIZE + num_path_address; 
+      size_t retnlen = ((size_t) caplen) - num_path_address;
+
+      // check returned packet is expected
+
+      rmapw.recv_reply(retnbuf, retnlen);
+    }
 
     prev_time = curr_time;
   }

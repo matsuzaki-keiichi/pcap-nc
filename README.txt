@@ -19,6 +19,8 @@ Arguments:
 --original-time:
   do not update the values in the timestamp fields of a Packet Record.
   Unless specified, the values in the timestamp fields are updated into the current packet transmission time.
+--receive-reply input(path):
+  receive reply from the input and check the reply
 
 pcap-store
 Arguments:

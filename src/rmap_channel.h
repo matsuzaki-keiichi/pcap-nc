@@ -12,6 +12,8 @@ class rmap_write_channel {
     void send_witouht_ack (const uint8_t inbuf[],   size_t insize,   uint8_t sendbuf[],        size_t *sendsize_p);
     void recv             (const uint8_t recvbuf[], size_t recvsize, const uint8_t **outbuf_p, size_t *outsize_p);
     void reply            (const uint8_t recvbuf[], size_t recvsize, uint8_t replybuf[],       size_t *replylen);
+    void recv_reply       (const uint8_t recvbuf[], size_t recvsize);
+
 
     uint8_t  d_path_address[RMAP_MAX_NUM_PATH_ADDRESS]; size_t num_dpa;
     uint8_t  s_path_address[RMAP_MAX_NUM_PATH_ADDRESS]; size_t num_spa;

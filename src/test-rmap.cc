@@ -93,4 +93,5 @@ int main(int argc, char *argv[])
         if ( i%4==3 || i == retnsize-1 ) fprintf(stderr, "\n"); else fprintf(stderr, " ");
     }    
 
+    rmapw.recv_reply(retnbuf, retnsize);
 }

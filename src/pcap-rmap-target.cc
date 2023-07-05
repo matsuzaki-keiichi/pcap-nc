@@ -115,7 +115,7 @@ int main(int argc, char *argv[])
   while(1){
     ret = ip.read(inbuf, 1, PACKET_HEADER_SIZE);
     if       ( ret == 0 ) {
-      pcapnc_logerr(PROGNAME "End of input.\n");
+      // pcapnc_logerr(PROGNAME "End of input.\n");
       return ERROR_6;
     } else if ( ret < PACKET_HEADER_SIZE ) {
       pcapnc_logerr(PROGNAME "Unexpected end of input (partial packet header).\n");

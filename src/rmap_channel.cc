@@ -195,7 +195,7 @@ void rmap_write_channel::send_witouht_ack(const uint8_t inbuf[], size_t insize, 
     size_t sendsize0 = 16+m+n+insize+1;
 
     if ( sendsize0 > *sendsize_p ) {
-        fprintf(stderr, "output size (%zu) exceeds the buffer size (%zu).\n", sendsize0, *sendsize_p);
+        pcapnc_logerr("output size (%zu) exceeds the buffer size (%zu).\n", sendsize0, *sendsize_p);
         exit(1);        
     }
 
@@ -212,13 +212,13 @@ void rmap_write_channel::recv(const uint8_t recvbuf[], size_t recvsize, const ui
     const uint8_t *const cargo = recvbuf;
 
     if ( cargo[0] != this->destination_logical_address ){
-        fprintf(stderr, "Destination Logical Address is not 0x%02x but 0x%02x.\n", 
+        pcapnc_logerr("Destination Logical Address is not 0x%02x but 0x%02x.\n", 
             this->destination_logical_address, cargo[0]);
         return;       
     }
 
     if ( cargo[1] != RMAP_PROTOCOL_ID ){
-        fprintf(stderr, "Protocol ID is not 0x%02x but 0x%02x.\n", 
+        pcapnc_logerr("Protocol ID is not 0x%02x but 0x%02x.\n", 
             RMAP_PROTOCOL_ID, cargo[1]);
         return;       
     }
@@ -229,18 +229,18 @@ void rmap_write_channel::recv(const uint8_t recvbuf[], size_t recvsize, const ui
 
     const uint8_t header_crc = rmap_calculate_crc(cargo, 15+n);
     if ( cargo[15+n] != header_crc ){
-        fprintf(stderr, "Header CRC Error.\n");
+        pcapnc_logerr("Header CRC Error.\n");
         return;       
     }
 
     if ( instruction != this->instruction ) {
-        fprintf(stderr, "Instruction is not 0x%02x but 0x%02x.\n", 
+        pcapnc_logerr("Instruction is not 0x%02x but 0x%02x.\n", 
             this->instruction, instruction & 0xFC);
         return;       
     }
 
     if ( cargo[3] != this->destination_key ){
-        fprintf(stderr, "Protocol ID is not 0x%02x but 0x%02x.\n", 
+        pcapnc_logerr("Protocol ID is not 0x%02x but 0x%02x.\n", 
             this->destination_key, cargo[3]);
         return;       
     }
@@ -251,13 +251,13 @@ void rmap_write_channel::recv(const uint8_t recvbuf[], size_t recvsize, const ui
         +                    (((uint64_t) cargo[10+n]) <<  8) 
         +                    (((uint64_t) cargo[11+n]) <<  0);
     if ( address != this->memory_address ){
-        fprintf(stderr, "Write Address is not 0x%10" PRIx64 " but 0x%10" PRIx64 ".\n", 
+        pcapnc_logerr("Write Address is not 0x%10" PRIx64 " but 0x%10" PRIx64 ".\n", 
             this->memory_address, address);
         return;       
     }
 
     if ( cargo[4+n] != this->source_logical_address ){
-        fprintf(stderr, "Source Logical Address is not 0x%02x but 0x%02x.\n", 
+        pcapnc_logerr("Source Logical Address is not 0x%02x but 0x%02x.\n", 
             this->source_logical_address, cargo[4+n]);
         return;       
     }
@@ -270,7 +270,7 @@ void rmap_write_channel::recv(const uint8_t recvbuf[], size_t recvsize, const ui
         +                        (((size_t) cargo[14+n]) <<  0);
 
     if ( 16+n+data_length+1 != recvsize ){
-        fprintf(stderr, "Data Length (%zu) is not consistent received packet size (%zu).\n", 
+        pcapnc_logerr("Data Length (%zu) is not consistent received packet size (%zu).\n", 
             data_length, recvsize);
         return;       
     }
@@ -278,7 +278,7 @@ void rmap_write_channel::recv(const uint8_t recvbuf[], size_t recvsize, const ui
     const uint8_t *const data = cargo + 16 + n;
     const uint8_t data_crc = rmap_calculate_crc(data, data_length);
     if ( data[data_length] != data_crc ){
-        fprintf(stderr, "Data CRC Error.\n");
+        pcapnc_logerr("Data CRC Error.\n");
         return;       
     }
 
@@ -287,23 +287,10 @@ void rmap_write_channel::recv(const uint8_t recvbuf[], size_t recvsize, const ui
 }
 
 void rmap_write_channel::reply(const uint8_t recvbuf[], size_t recvsize, uint8_t replybuf[], size_t *replylen){
-
     const uint8_t command_instruction = recvbuf[2];
-    const int source_path_address_length = command_instruction & 0x03; 
+    const int source_path_address_length = command_instruction & 0x03;
     const size_t n = source_path_address_length << 2;
     const uint8_t status = 0; // TODO implement status ??
-
-    // Wrire Reply (e.g. 0x28)
-    // Instruction field = RMAP Reply
-    //  0b: reserved
-    //  0b: response
-    //  1b: write
-    //  ?b: no verify (?)
-    //  1b: with acknowledge
-    //  ?b: no increment (?)
-    // 00b: source path address length
-
-    const uint8_t reply_instruction = command_instruction & (0xFF - 0x43);
 
     size_t m=0;
     for ( size_t i=0; i<n ; i++ ){
@@ -312,8 +299,9 @@ void rmap_write_channel::reply(const uint8_t recvbuf[], size_t recvsize, uint8_t
         replybuf[m++] = ad;
     }
 
+    const uint8_t reply_instruction = command_instruction & (0xFF - 0x43);
+    
     uint8_t *const cargo = replybuf + m;
-
     cargo[0] = this->source_logical_address;
     cargo[1] = RMAP_PROTOCOL_ID;
     cargo[2] = reply_instruction;
@@ -325,6 +313,69 @@ void rmap_write_channel::reply(const uint8_t recvbuf[], size_t recvsize, uint8_t
 
     *replylen = m+8;
 }
+
+void rmap_write_channel::recv_reply(const uint8_t recvbuf[], size_t recvsize){
+
+    // Wrire Reply (e.g. 0x28)
+    // Instruction field = RMAP Reply
+    //  0b: reserved
+    //  0b: response
+    //  1b: write
+    //  ?b: no verify (?)
+    //  1b: with acknowledge
+    //  ?b: no increment (?)
+    // 00b: source path address length
+
+    const uint8_t *const cargo = recvbuf;
+
+    if ( recvsize != 8 ){
+        pcapnc_logerr("Length of a Write Reply is not 8 but 0x%zu.\n", 
+            recvsize);
+        return;       
+    }
+    if ( cargo[0] != this->source_logical_address ){
+        pcapnc_logerr("Destination Logical Address is not 0x%02x but 0x%02x.\n", 
+            this->source_logical_address, cargo[0]);
+        return;       
+    }
+
+    if ( cargo[1] != RMAP_PROTOCOL_ID ){
+        pcapnc_logerr("Protocol ID is not 0x%02x but 0x%02x.\n", 
+            RMAP_PROTOCOL_ID, cargo[1]);
+        return;       
+    }
+
+    const uint8_t expected_instruction = this->instruction & (0xFF - 0x43);
+    if ( cargo[2] != expected_instruction ) {
+        pcapnc_logerr("Instruction is not 0x%02x but 0x%02x.\n", 
+            expected_instruction, cargo[2]);
+        return;       
+    }
+
+    // cargo[3] = status;
+
+    if ( cargo[4] != this->destination_logical_address ){
+        pcapnc_logerr("Source Logical Address is not 0x%02x but 0x%02x.\n", 
+            this->destination_logical_address, cargo[4]);
+        return;       
+    }
+
+    uint16_t transaction_id =  (cargo[5] << 8) + cargo[6];
+    uint16_t expected_transaction_id = (uint16_t)(this->transaction_id-1); 
+    if ( transaction_id != expected_transaction_id ){
+        pcapnc_logerr("Transaction ID is not 0x%02" PRIx16 " but 0x%02" PRIx16 ".\n", 
+            expected_transaction_id, transaction_id);
+        return;       
+    }
+
+    const uint8_t crc = rmap_calculate_crc(cargo, 7);
+    if ( cargo[7] != crc ){
+        pcapnc_logerr("CRC Error.\n");
+        return;       
+    }
+    return;
+}
+
 extern "C" {
 
 // #define DEBUG
