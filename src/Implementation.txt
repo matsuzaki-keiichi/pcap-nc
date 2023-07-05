@@ -1,0 +1,1 @@
+- Set size of the standard input/output to zero (at the begining of the C-programs).

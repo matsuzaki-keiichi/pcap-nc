@@ -36,6 +36,8 @@ static int use_rmapw = 0;
 
 int main(int argc, char *argv[])
 {
+  pcapnc_unset_stdbuf();
+
   //// parse options
   
   int option_error    = 0;

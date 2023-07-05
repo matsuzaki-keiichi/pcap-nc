@@ -66,6 +66,8 @@ static int         param_original_time =  0;
 
 int main(int argc, char *argv[])
 {
+  pcapnc_unset_stdbuf();
+
   //// parse options
   
   int option_error = 0;
@@ -125,7 +127,10 @@ int main(int argc, char *argv[])
 ///// fprintf(stderr,"read=%d start", i++);
     ret = pcapnc_fread(inbuf, 1, PACKET_HEADER_SIZE, stdin);
 //// fprintf(stderr," end\n");
-    if ( ret < PACKET_HEADER_SIZE ) {
+    if        ( ret == 0 ) {
+      pcapnc_logerr("End of file.\n");
+      return 0;
+    } else if ( ret < PACKET_HEADER_SIZE ) {
       pcapnc_logerr("Unexpected end of file (partial packet header).\n");
       return ERROR_5;
     }

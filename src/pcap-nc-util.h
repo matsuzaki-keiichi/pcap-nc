@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdint.h>
 
+void   pcapnc_unset_stdbuf();
 size_t pcapnc_fread(void *buf, size_t size, size_t nmemb, FILE *fp);
 size_t pcapnc_fwrite(const void *buf, size_t size, size_t nmemb, FILE *fp);
 

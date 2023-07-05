@@ -1,105 +1,53 @@
 #!/bin/bash
 
+function do_test(){
+  echo $1
+  $1
+  diff $2 $3
+  if [ $? -ne 0 ]; then  
+    echo test failed
+    exit
+  fi
+  rm -f $3
+}
+
 rm -fr outdir
 mkdir -p outdir
 
-# SPP / PCAP => { SPP / RMAP Write Command (with reply) / PCAP } => {RMAP Write Reply / PCAP}
+# case 5.
+#                   Initiator         network         Target
+# SPP/PCAP => SPP/RMAPWC/PCAP => {SPP/RMAPWC/PCAP} => SPP/RMAPWC/PCAP
+#                 RMAPWR/PCAP <=     {RMAPWR/PCAP} <=     RMAPWR/PCAP
 
-echo ./test-client2server-rmapw-rpl2.sh 
-./test-client2server-rmapw-rpl2.sh
+do_test ./test-client2server-rmapw-rpl2.sh expected/test-rpl-out.pcap outdir/test-rpl-out.pcap
+do_test ./test-server2client-rmapw-rpl2.sh expected/test-rpl-out.pcap outdir/test-rpl-out.pcap
 
-diff expected/test-rpl-out.pcap outdir/test-rpl-out.pcap
-if [ $? -ne 0 ]; then
-    echo test failed
-    exit
-fi
+# case 4.
+#                   Initiator         network         Target
+# SPP/PCAP => SPP/RMAPWC/PCAP => {SPP/RMAPWC/PCAP} => SPP/RMAPWC/PCAP => RMAPWR/PCAP
 
-echo ./test-server2client-rmapw-rpl2.sh 
-./test-server2client-rmapw-rpl2.sh
+do_test ./test-client2server-rmapw-rpl.sh expected/test-rpl-out.pcap outdir/test-rpl-out.pcap
+do_test ./test-server2client-rmapw-rpl.sh expected/test-rpl-out.pcap outdir/test-rpl-out.pcap
 
-diff expected/test-rpl-out.pcap outdir/test-rpl-out.pcap
-if [ $? -ne 0 ]; then
-    echo test failed
-    exit
-fi
+# case 3.
+#                   Initiator         network         Target
+# SPP/PCAP => SPP/RMAPWC/PCAP => {SPP/RMAPWC/PCAP} => SPP/RMAPWC/PCAP => SPP/PCAP
 
-# SPP / PCAP => { SPP / RMAP Write Command (with reply) / PCAP } => RMAP Write Reply / PCAP
+do_test ./test-client2server-rmapw-spp.sh expected/test-spp-out.pcap outdir/test-spp-out.pcap
+do_test ./test-server2client-rmapw-spp.sh expected/test-spp-out.pcap outdir/test-spp-out.pcap
 
-echo ./test-client2server-rmapw-rpl.sh 
-./test-client2server-rmapw-rpl.sh
+# case 2.
+#                   Initiator         network         Target
+# SPP/PCAP => SPP/RMAPWC/PCAP => {SPP/RMAPWC/PCAP} => SPP/RMAPWC/PCAP
 
-diff expected/test-rpl-out.pcap outdir/test-rpl-out.pcap
-if [ $? -ne 0 ]; then
-    echo test failed
-    exit
-fi
+do_test ./test-client2server-rmapw.sh expected/test-rmapw-spp-out.pcap outdir/test-rmapw-spp-out.pcap
+do_test ./test-server2client-rmapw.sh expected/test-rmapw-spp-out.pcap outdir/test-rmapw-spp-out.pcap
 
-echo ./test-server2client-rmapw-rpl.sh 
-./test-server2client-rmapw-rpl.sh
+# case 1.
+#                   Initiator         network         Target
+#                    SPP/PCAP =>     {SPP/PCAP}    => SPP/PCAP
 
-diff expected/test-rpl-out.pcap outdir/test-rpl-out.pcap
-if [ $? -ne 0 ]; then
-    echo test failed
-    exit
-fi
+do_test ./test-client2server.sh expected/test-spp-out.pcap outdir/test-spp-out.pcap
+do_test ./test-server2client.sh expected/test-spp-out.pcap outdir/test-spp-out.pcap
 
-# SPP / PCAP => { SPP / RMAP Write Command (without reply) / PCAP } => SPP / PCAP
-
-echo ./test-client2server-rmapw-spp.sh 
-./test-client2server-rmapw-spp.sh
-
-diff expected/test-spp-out.pcap outdir/test-spp-out.pcap
-if [ $? -ne 0 ]; then
-    echo test failed
-    exit
-fi
-
-echo ./test-server2client-rmapw-spp.sh 
-./test-server2client-rmapw-spp.sh
-
-diff expected/test-spp-out.pcap outdir/test-spp-out.pcap
-if [ $? -ne 0 ]; then
-    echo test failed
-    exit
-fi
-
-# SPP / PCAP => {SPP / RMAP Write Command (without reply) / PCAP} 
-
-echo ./test-client2server-rmapw.sh 
-./test-client2server-rmapw.sh
-
-diff expected/test-rmapw-spp-out.pcap outdir/test-rmapw-spp-out.pcap
-if [ $? -ne 0 ]; then
-    echo test failed
-    exit
-fi
-
-echo ./test-server2client-rmapw.sh 
-./test-server2client-rmapw.sh
-
-diff expected/test-rmapw-spp-out.pcap outdir/test-rmapw-spp-out.pcap
-if [ $? -ne 0 ]; then
-    echo test failed
-    exit
-fi
-
-# {SPP / PCAP}
-
-echo ./test-client2server.sh 
-./test-client2server.sh
-
-diff expected/test-spp-out.pcap outdir/test-spp-out.pcap
-if [ $? -ne 0 ]; then
-    echo test failed
-    exit
-fi
-
-echo ./test-server2client.sh
-./test-server2client.sh
-
-diff expected/test-spp-out.pcap outdir/test-spp-out.pcap
-if [ $? -ne 0 ]; then
-    echo test failed
-    exit
-fi
-
+echo all test succeeded

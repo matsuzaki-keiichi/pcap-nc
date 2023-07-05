@@ -9,11 +9,22 @@
 // ntohl
 #include <byteswap.h>
 // bswap_32 (gcc)
+#include <stdio.h>
+// setvbuf
 
 // #define DEBUG
 
 #define READ_RETRY  1 // sec
 #define WRITE_RETRY 1 // sec
+
+void pcapnc_unset_stdbuf(){
+  int ret;
+  ret = setvbuf(stdin,  NULL, _IONBF, 0);
+  if ( ret != 0 ) pcapnc_logerr("Failed to Unset stdin buffer.\n");
+
+  ret = setvbuf(stdout, NULL, _IONBF, 0);
+  if ( ret != 0 ) pcapnc_logerr("Failed to Unset stdout buffer.\n");
+}
 
 size_t pcapnc_fread(void *buf, size_t size, size_t nmemb, FILE *fp){
   size_t remaining_nmemb = nmemb;
