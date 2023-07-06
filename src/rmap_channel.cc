@@ -43,6 +43,16 @@ static uint8_t read_hex_uint8(const rapidjson::Value &obj, const char *varname, 
     return (uint8_t) llvalue;    
 }
 
+static uint32_t read_hex_uint24(const rapidjson::Value &obj, const char *varname, const char *channel_name){
+    const char* s = obj[varname].GetString();
+    const long long llvalue = parse_hex_longlong(s, varname, channel_name);
+    if ( llvalue >= 0x1000000 || llvalue < 0 ) {
+        pcapnc_logerr("%s of the channel '%s' shall be 3 byte value.\n", varname, channel_name);
+        exit(1);        
+    }
+    return (uint32_t) llvalue;    
+}
+
 static uint64_t read_hex_uint40(const rapidjson::Value &obj, const char *varname, const char *channel_name){
     const char* s = obj[varname].GetString();
     const long long llvalue = parse_hex_longlong(s, varname, channel_name);
@@ -130,12 +140,18 @@ void rmap_write_channel::read_json(const char *file_name, const char *channel_na
         this->source_logical_address      = read_hex_uint8 (channel, "source_logical_address"     , channel_name);
         this->instruction                 = read_hex_uint8 (channel, "instruction"                , channel_name);
         this->memory_address              = read_hex_uint40(channel, "memory_address"             , channel_name);
-        this->data_length = 0;
 
         if ( this->instruction & 0x03 ) {
             pcapnc_logerr("Lower 2bits of the istruction (%02x) of the channel '%s' shall be 0.\n", this->instruction, channel_name);
             exit(1);        
         }
+
+        if ( channel.HasMember("data_length") ) {
+            this->data_length             = read_hex_uint24(channel, "data_length"                , channel_name);
+        } else {
+            this->data_length = 0;
+        }
+
 
 #ifdef DEBUG
         std::cout << "destination_path_address:    " << channel["destination_path_address"]    .GetString() << std::endl;

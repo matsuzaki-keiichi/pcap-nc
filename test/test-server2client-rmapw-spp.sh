@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# case 3.
+# case 12.
 #                      server                         client
 # SPP/PCAP => SPP/RMAPWC/PCAP => {SPP/RMAPWC/PCAP} => SPP/RMAPWC/PCAP => SPP/PCAP
 

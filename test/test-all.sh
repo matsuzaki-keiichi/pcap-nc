@@ -14,7 +14,7 @@ function do_test(){
 rm -fr outdir
 mkdir -p outdir
 
-# case 6.
+# case 15.
 #                   Initiator         network         Target
 # SPP/PCAP => SPP/RMAPWC/PCAP => {SPP/RMAPWC/PCAP} => SPP/RMAPWC/PCAP
 #  (check) <=     RMAPWR/PCAP <=     {RMAPWR/PCAP} <=     RMAPWR/PCAP
@@ -24,7 +24,7 @@ echo ./test-client2server-rmapw-rpl3.sh
 echo ./test-server2client-rmapw-rpl3.sh 
 ./test-server2client-rmapw-rpl3.sh 
 
-# case 5.
+# case 14.
 #                   Initiator         network         Target
 # SPP/PCAP => SPP/RMAPWC/PCAP => {SPP/RMAPWC/PCAP} => SPP/RMAPWC/PCAP
 #                 RMAPWR/PCAP <=     {RMAPWR/PCAP} <=     RMAPWR/PCAP
@@ -32,21 +32,21 @@ echo ./test-server2client-rmapw-rpl3.sh
 do_test ./test-client2server-rmapw-rpl2.sh expected/test-rpl-out.pcap outdir/test-rpl-out.pcap
 do_test ./test-server2client-rmapw-rpl2.sh expected/test-rpl-out.pcap outdir/test-rpl-out.pcap
 
-# case 4.
+# case 13.
 #                   Initiator         network         Target
 # SPP/PCAP => SPP/RMAPWC/PCAP => {SPP/RMAPWC/PCAP} => SPP/RMAPWC/PCAP => RMAPWR/PCAP
 
 do_test ./test-client2server-rmapw-rpl.sh expected/test-rpl-out.pcap outdir/test-rpl-out.pcap
 do_test ./test-server2client-rmapw-rpl.sh expected/test-rpl-out.pcap outdir/test-rpl-out.pcap
 
-# case 3.
+# case 12.
 #                   Initiator         network         Target
 # SPP/PCAP => SPP/RMAPWC/PCAP => {SPP/RMAPWC/PCAP} => SPP/RMAPWC/PCAP => SPP/PCAP
 
 do_test ./test-client2server-rmapw-spp.sh expected/test-spp-out.pcap outdir/test-spp-out.pcap
 do_test ./test-server2client-rmapw-spp.sh expected/test-spp-out.pcap outdir/test-spp-out.pcap
 
-# case 2.
+# case 11.
 #                   Initiator         network         Target
 # SPP/PCAP => SPP/RMAPWC/PCAP => {SPP/RMAPWC/PCAP} => SPP/RMAPWC/PCAP
 

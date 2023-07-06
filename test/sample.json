@@ -21,6 +21,18 @@
             "source_logical_address":      "0x91",
             "instruction":                 "0x68",
             "memory_address":              "0x456789ABCD"
+        },
+        {
+            "name":                        "channel3",
+            "description":                 "test channel for RMAP Read",
+            "destination_path_address":    "0x14 0x13 0x11",
+            "destination_logical_address": "0x90",
+            "destination_key":             "0x6F",
+            "source_path_address":         "0x11 0x13 0x14",
+            "source_logical_address":      "0x91",
+            "instruction":                 "0x48",
+            "memory_address":              "0x456789ABCD",
+            "data_length":                 "0x100"
         }
     ]
 }

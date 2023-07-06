@@ -4,10 +4,21 @@
 #include <inttypes.h>
 #include <stdint.h>
 
-static class rmap_write_channel rmapw;
+static void output_buffer(const uint8_t buffer[], size_t length, size_t leading_padding_length){
+    size_t p = leading_padding_length;
+    size_t q = length + p;
 
-int main(int argc, char *argv[])
-{
+    for ( size_t i=0 ; i<q ; i++ ){
+        if ( i < p ) fprintf(stderr, "  ");
+        else fprintf(stderr, "%02x", buffer[i-p]);
+        if ( i%4==3 || i == q-1 ) fprintf(stderr, "\n"); else fprintf(stderr, " ");
+    }    
+}
+
+static void test_write_channel(){
+
+    class rmap_write_channel rmapw;
+
     rmapw.read_json("../test/sample.json", "channel2");
 
     ////
@@ -31,28 +42,17 @@ int main(int argc, char *argv[])
 
     rmapw.send(inbuf, insize, sendbuf, &sendsize);
 
-    const size_t p = rmapw.num_dpa_padding;
-    const size_t q = sendsize+p;
-
-    fprintf(stderr, "Transmitted RMAP Command:\n");
-    for ( size_t i=0 ; i<q ; i++ ){
-        if ( i < p ) fprintf(stderr, "  ");
-        else fprintf(stderr, "%02x", sendbuf[i-p]);
-        if ( i%4==3 || i == q-1 ) fprintf(stderr, "\n"); else fprintf(stderr, " ");
-    }    
+    fprintf(stderr, "Transmitted RMAP Write Command:\n");
+    output_buffer(sendbuf, sendsize, rmapw.num_dpa_padding);
 
     //// Receive RMAP Write Command
 
     const size_t num_recv_path_address = rmap_num_path_address(sendbuf, sendsize);
-
     uint8_t *recvbuf  = sendbuf  + num_recv_path_address;
     size_t   recvsize = sendsize - num_recv_path_address;
 
-    fprintf(stderr, "Received RMAP Command:\n");
-    for ( size_t i=0 ; i<recvsize ; i++ ){
-        fprintf(stderr, "%02x", recvbuf[i]);
-        if ( i%4==3 || i == recvsize-1 ) fprintf(stderr, "\n"); else fprintf(stderr, " ");
-    }    
+    fprintf(stderr, "Received RMAP Write Command:\n");
+    output_buffer(recvbuf, recvsize, 0);
 
     //// Extract Service Data Unit from RMAP Write Command
 
@@ -62,10 +62,7 @@ int main(int argc, char *argv[])
     rmapw.recv(recvbuf, recvsize, &outbuf, &outsize);
 
     fprintf(stderr, "Received Data (%zu):\n", outsize);
-    for ( size_t i=0 ; i<outsize ; i++ ){
-        fprintf(stderr, "%02x", outbuf[i]);
-        if ( i == outsize-1 ) fprintf(stderr, "\n"); else fprintf(stderr, " ");
-    }
+    output_buffer(outbuf, outsize, 0);
 
     //// Generate and Transmit RMAP Write Reply
 
@@ -75,23 +72,49 @@ int main(int argc, char *argv[])
     rmapw.reply(recvbuf, recvsize, replybuf, &replysize);
 
     fprintf(stderr, "Transmitted RMAP Reply:\n");
-    for ( size_t i=0 ; i<replysize ; i++ ){
-        fprintf(stderr, "%02x", replybuf[i]);
-        if ( i%4==3 || i == replysize-1 ) fprintf(stderr, "\n"); else fprintf(stderr, " ");
-    }    
+    output_buffer(replybuf, replysize, 0);
 
     //// Receive RMAP Write Reply
 
     const size_t num_retn_path_address = rmap_num_path_address(replybuf, replysize);
-
     uint8_t *retnbuf  = replybuf  + num_retn_path_address;
     size_t   retnsize = replysize - num_retn_path_address;
 
     fprintf(stderr, "Received RMAP Reply:\n");
-    for ( size_t i=0 ; i<retnsize ; i++ ){
-        fprintf(stderr, "%02x", retnbuf[i]);
-        if ( i%4==3 || i == retnsize-1 ) fprintf(stderr, "\n"); else fprintf(stderr, " ");
-    }    
+    output_buffer(retnbuf, retnsize, 0);
 
     rmapw.recv_reply(retnbuf, retnsize);
+}
+
+void test_read_channel(){
+
+    class rmap_write_channel rmapw;
+
+    rmapw.read_json("../test/sample.json", "channel3");
+
+    //// Generate and Transmit RMAP Read Command
+
+    uint8_t  sendbuf[999];
+    size_t sendsize = rmapw.generate_command_head(sendbuf);
+    fprintf(stderr, "Transmitted RMAP Read Command:\n");
+    output_buffer(sendbuf, sendsize, rmapw.num_dpa_padding);
+
+    //// Receive RMAP Read Command
+
+    const size_t num_recv_path_address = rmap_num_path_address(sendbuf, sendsize);
+    uint8_t *recvbuf  = sendbuf  + num_recv_path_address;
+    size_t   recvsize = sendsize - num_recv_path_address;
+
+    fprintf(stderr, "Received RMAP Read Command:\n");
+    output_buffer(recvbuf, recvsize, 0);
+}
+
+int main(int argc, char *argv[])
+{
+    fprintf(stderr, "Test RMAP Write Channel ----\n");
+    test_write_channel();
+    fprintf(stderr, "\n");
+    fprintf(stderr, "Test RMAP Read Channel ----\n");
+    test_read_channel();
+    fprintf(stderr, "\n");
 }
