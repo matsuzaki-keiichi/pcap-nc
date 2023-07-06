@@ -13,12 +13,12 @@ FIFO2=/tmp/pcap-fifo2
 mkfifo $FIFO1 $FIFO2
 
 PCAPNC='stdbuf -i 0 -o 0 ../bin/pcap-nc'
-CLOPT1='127.0.0.1 14800 --sleep=1'
-CLOPT2='--interval=0.001 --original-time'
+OPTCLNT='127.0.0.1 14800 --sleep=1'
+OPTSEND='--interval=0.001 --original-time'
 SVOPT='--no-stdin -l 14800'
 
 echo "starting client (1sec delay)"
-../bin/pcap-replay $CLOPT2 --receive-reply=$FIFO2 $CHAN < test-spp.pcap | $PCAPNC --no-stdin $CLOPT1 --link-type=spw >$FIFO2 &
+../bin/pcap-replay $OPTSEND --receive-reply=$FIFO2 $CHAN < test-spp.pcap | $PCAPNC --no-stdin $OPTCLNT --link-type=spw >$FIFO2 &
 
 echo starting server
 $PCAPNC $SVOPT --link-type=spw <$FIFO1 | ../bin/pcap-rmap-target $CHAN | ../bin/pcap-replay --interval=0.0 --original-time >$FIFO1

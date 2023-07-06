@@ -8,10 +8,11 @@ mkdir -p outdir
 
 CHAN='--config=sample.json --channel=channel1' # RMAP Write Command without Acknowledge
 PCAPNC='../bin/pcap-nc'
-CLOPT='127.0.0.1 14800 --interval=0.001 --original-time --sleep=1'
-SVOPT='--no-stdin -l 14800'
+OPTSEND='--original-time --interval=0.001'
+OPTSERV='--no-stdin -l 14800'
+OPTCLNT='127.0.0.1 14800 --sleep=1'
 
 echo "starting client (1sec delay)"
-$PCAPNC $CLOPT $CHAN < test-spp.pcap >/dev/null &
+$PCAPNC $OPTCLNT $OPTSEND $CHAN < test-spp.pcap >/dev/null &
 echo starting server
-$PCAPNC $SVOPT --link-type=spp >outdir/test-rmapw-spp-out.pcap
+$PCAPNC $OPTSERV --link-type=spp >outdir/test-rmapw-spp-out.pcap

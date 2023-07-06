@@ -12,13 +12,15 @@ FIFO=/tmp/pcap-fifo
 mkfifo $FIFO
 
 PCAPNC='stdbuf -i 0 -o 0 ../bin/pcap-nc'
-CLOPT='--no-stdin 127.0.0.1 14800'
-SVOPT='-l 14800 --interval=0.001 --after=5 --original-time'
+OPTSEND='--original-time --interval=0.001 --after=5'
+OPTRSPN='--original-time --interval=0.0'
+OPTSERV='-l 14800'
+OPTCLNT='127.0.0.1 14800 --no-stdin'
 
 echo starting server
-$PCAPNC $SVOPT $CHAN < test-spp.pcap >outdir/test-rpl-out.pcap &
+$PCAPNC $OPTSERV $OPTSEND $CHAN < test-spp.pcap >outdir/test-rpl-out.pcap &
 sleep 1
 echo starting client
-$PCAPNC $CLOPT --link-type=spw <$FIFO | ../bin/pcap-rmap-target $CHAN | ../bin/pcap-replay --interval=0.0 --original-time >$FIFO
+$PCAPNC $OPTCLNT --link-type=spw <$FIFO | ../bin/pcap-rmap-target $CHAN | ../bin/pcap-replay $OPTRSPN >$FIFO
 
 rm $FIFO
