@@ -113,39 +113,17 @@ int main(int argc, char *argv[])
   }
 
   while(1){
-    ret = ip.read(inbuf, 1, PACKET_HEADER_SIZE);
-    if       ( ret == 0 ) {
-      // pcapnc_logerr(PROGNAME "End of input.\n");
-      return ERROR_6;
-    } else if ( ret < PACKET_HEADER_SIZE ) {
-      pcapnc_logerr(PROGNAME "Unexpected end of input (partial packet header).\n");
-      return ERROR_6;
-    }
-
-    const uint32_t coarse_time = ip.extract_uint32(inbuf+ 0);
-    const uint32_t nano_sec    = ip.extract_uint32(inbuf+ 4) * ip.p2n;
-    const uint32_t caplen      = ip.extract_uint32(inbuf+ 8);
-//  const uint32_t orglen      = ip.extract_uint32(inbuf+12);
-
-    if ( caplen > PACKET_DATA_MAX_SIZE ) {
-      pcapnc_logerr(PROGNAME "Unexpected packet header (caplen(=%" PRIx32 ") too long).\n", caplen);
-      return ERROR_7;
-    }
-    
-    ret = ip.read(&(inbuf[PACKET_HEADER_SIZE]), 1, caplen);
-    if ( ret < caplen ) {
-      pcapnc_logerr(PROGNAME "Unexpected end of input (partial packet data).\n");
-      return ERROR_8;
-    }
+    ret = ip.read_packet_header(inbuf, sizeof(inbuf), PROGNAME, "input"); if ( ret > 0 ) return ret; if ( ret < 0 ) return 0;
+    ret = ip.read_packet_data(inbuf, PROGNAME, "input"); if ( ret > 0 ) return ret;
 
     if ( !use_rmapw ) {
-      ret = pcapnc_fwrite(inbuf,  1, PACKET_HEADER_SIZE+caplen, stdout);
+      ret = pcapnc_fwrite(inbuf,  1, PACKET_HEADER_SIZE+ip.caplen, stdout);
     } else {
 
       // simulate network
-      const size_t num_path_address = rmap_num_path_address(inbuf + PACKET_HEADER_SIZE, caplen);
+      const size_t num_path_address = rmap_num_path_address(inbuf + PACKET_HEADER_SIZE, ip.caplen);
       const uint8_t *in_packet = inbuf + PACKET_HEADER_SIZE + num_path_address; 
-      size_t inlen = ((size_t) caplen) - num_path_address;
+      size_t inlen = ((size_t) ip.caplen) - num_path_address;
       size_t outlen;
 
       // generate output
@@ -162,8 +140,8 @@ int main(int argc, char *argv[])
         memcpy(outbuf+PACKET_HEADER_SIZE, out_packet, outlen);
       } 
 
-      pcapnc_network_encode_uint32(outbuf+ 0, coarse_time);
-      pcapnc_network_encode_uint32(outbuf+ 4, nano_sec);
+      pcapnc_network_encode_uint32(outbuf+ 0, ip.coarse_time);
+      pcapnc_network_encode_uint32(outbuf+ 4, ip.nanosec);
       pcapnc_network_encode_uint32(outbuf+ 8, outlen);
       pcapnc_network_encode_uint32(outbuf+12, outlen);
 

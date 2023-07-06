@@ -113,15 +113,14 @@ int pcap_file::read_head(FILE *input){
   const uint32_t magic_number = *(uint32_t*)&(inbuf[ 0]);
   const uint32_t magic_number_swap = bswap_32(magic_number);
   
-  if      ( magic_number      == MAGIC_NUMBER_USEC ) { this->finetime_unit = 1e-6; this->u2p = 1;    this->exec_bswap = 0; }
-  else if ( magic_number_swap == MAGIC_NUMBER_USEC ) { this->finetime_unit = 1e-6; this->u2p = 1;    this->exec_bswap = 1; }
-  else if ( magic_number      == MAGIC_NUMBER_NSEC ) { this->finetime_unit = 1e-9; this->u2p = 1000; this->exec_bswap = 0; }
-  else if ( magic_number_swap == MAGIC_NUMBER_NSEC ) { this->finetime_unit = 1e-9; this->u2p = 1000; this->exec_bswap = 1; }
+  if      ( magic_number      == MAGIC_NUMBER_USEC ) { /* this->finetime_unit = 1e-6; */ this->p2n = 1000; this->exec_bswap = 0; }
+  else if ( magic_number_swap == MAGIC_NUMBER_USEC ) { /* this->finetime_unit = 1e-6; */ this->p2n = 1000; this->exec_bswap = 1; }
+  else if ( magic_number      == MAGIC_NUMBER_NSEC ) { /* this->finetime_unit = 1e-9; */ this->p2n = 1;    this->exec_bswap = 0; }
+  else if ( magic_number_swap == MAGIC_NUMBER_NSEC ) { /* this->finetime_unit = 1e-9; */ this->p2n = 1;    this->exec_bswap = 1; }
   else {
     pcapnc_logerr("File is not a PCAP file (bad magic number).\n");
     return ERROR_3;
   }
-  this->p2n = 1000 / this->u2p;
 
   const uint32_t major_version = pcapnc_extract_uint16(exec_bswap, inbuf+4 );
   const uint32_t minor_version = pcapnc_extract_uint16(exec_bswap, inbuf+6 );
@@ -141,7 +140,47 @@ int pcap_file::read_head(const char *filename){
     return ERROR_5;
   }
 
+  const int ret = setvbuf(rp,  NULL, _IONBF, 0);
+  if ( ret != 0 ) pcapnc_logerr("Failed to Unset input buffer.\n");
+
   return pcap_file::read_head(rp);    
+}
+
+#define ERROR_5 5
+#define ERROR_6 6
+#define ERROR_7 7
+
+#define PACKET_HEADER_SIZE  16
+// TODO eliminate duplicated definition
+
+int pcap_file::read_packet_header(uint8_t record_buffer[], size_t buffer_size, const char *prog_name, const char *source_name){
+  const size_t ret = this->read(record_buffer, 1, PACKET_HEADER_SIZE);
+  if        ( ret == 0 ) {
+    return -1;
+  } else if ( ret < PACKET_HEADER_SIZE ) {
+    pcapnc_logerr("%sUnexpected end of %s (partial packet header).\n", prog_name, source_name);
+    return ERROR_5;
+  }
+
+  this->coarse_time = this->extract_uint32(record_buffer+ 0);
+  this->nanosec     = this->extract_uint32(record_buffer+ 4) * this->p2n;
+  this->caplen      = this->extract_uint32(record_buffer+ 8);
+  this->orglen      = this->extract_uint32(record_buffer+12);
+
+  if ( PACKET_HEADER_SIZE + caplen > buffer_size ) {
+    pcapnc_logerr("%sUnexpected packet header (caplen(=%" PRIx32 ") too long).\n", prog_name, this->caplen);
+    return ERROR_6;
+  }
+  return 0;
+}
+
+int pcap_file::read_packet_data(uint8_t record_buffer[], const char *prog_name, const char *source_name){
+  const size_t ret = this->read(&(record_buffer[PACKET_HEADER_SIZE]), 1, this->caplen);
+  if ( ret < this->caplen ) {
+    pcapnc_logerr("%sUnexpected end of input (partial packet data).\n", prog_name);
+    return ERROR_7;
+  }
+  return 0;
 }
 
 uint16_t pcap_file::extract_uint16(void *ptr){

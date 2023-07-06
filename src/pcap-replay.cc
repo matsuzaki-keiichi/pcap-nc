@@ -41,9 +41,6 @@
 #define ERROR_2 2
 #define ERROR_3 3
 #define ERROR_4 4
-#define ERROR_5 5
-#define ERROR_6 6
-#define ERROR_7 7
 
 #define OPTSTRING ""
 
@@ -138,33 +135,8 @@ int main(int argc, char *argv[])
 
 //// int i=0;
   while(1){
-///// fprintf(stderr,"read=%d start", i++);
-    ret = ip.read(inbuf, 1, PACKET_HEADER_SIZE);
-//// fprintf(stderr," end\n");
-    if        ( ret == 0 ) {
-      // pcapnc_logerr(PROGNAME "End of file.\n");
-      return 0;
-    } else if ( ret < PACKET_HEADER_SIZE ) {
-      pcapnc_logerr(PROGNAME "Unexpected end of file (partial packet header).\n");
-      return ERROR_5;
-    }
-    const uint32_t coarse_time = ip.extract_uint32(inbuf+ 0);
-    const uint32_t fine_time   = ip.extract_uint32(inbuf+ 4);
-    const uint32_t caplen      = ip.extract_uint32(inbuf+ 8);
-//  const uint32_t orglen      = ip.extract_uint32(inbuf+12);
-
-    double curr_time = coarse_time + fine_time * ip.finetime_unit;
-
-    if ( caplen > PACKET_DATA_MAX_SIZE ) {
-      pcapnc_logerr(PROGNAME "Unexpected packet header (caplen(=%" PRIx32 ") too long).\n", caplen);
-      return ERROR_6;
-    }
-    
-    ret = ip.read(&(inbuf[PACKET_HEADER_SIZE]), 1, caplen);
-    if ( ret < caplen ) {
-      pcapnc_logerr(PROGNAME "Unexpected end of file (partial packet data).\n");
-      return ERROR_7;
-    }
+    ret = ip.read_packet_header(inbuf, sizeof(inbuf), PROGNAME, "file"); if ( ret > 0 ) return ret; if ( ret < 0 ) return 0;
+    ret = ip.read_packet_data(inbuf, PROGNAME, "file"); if ( ret > 0 ) return ret;
 
     // generated output (ending conversion is performed if needed)
 
@@ -175,34 +147,36 @@ int main(int argc, char *argv[])
 
       if ( iret == 0 ) {
       	const uint32_t now_coarse_time =          (uint32_t)  tv.tv_sec;
-      	const uint32_t now_fine_time   = ip.u2p * (uint32_t)  tv.tv_usec;
-	
+      	const uint32_t now_nanosec     =   1000 * (uint32_t)  tv.tv_usec;	
       	pcapnc_network_encode_uint32(outbuf+ 0, now_coarse_time);
-      	pcapnc_network_encode_uint32(outbuf+ 4, now_fine_time);
+      	pcapnc_network_encode_uint32(outbuf+ 4, now_nanosec);
+      } else {
+        // TODO implement error handling
       }
     } else {
-      pcapnc_network_encode_uint32(outbuf+ 0, coarse_time);
-      pcapnc_network_encode_uint32(outbuf+ 4, fine_time);
+      pcapnc_network_encode_uint32(outbuf+ 0, ip.coarse_time);
+      pcapnc_network_encode_uint32(outbuf+ 4, ip.nanosec);
     }
 
     size_t outlen;
     uint8_t *in_packet  = inbuf  + PACKET_HEADER_SIZE;
     uint8_t *out_packet = outbuf + PACKET_HEADER_SIZE;
     if ( use_rmapw ) {
-      const size_t insize  = caplen;
+      const size_t insize  = ip.caplen;
       size_t outsize = PACKET_DATA_MAX_SIZE;
 
       rmapw.send_witouht_ack(in_packet, insize, out_packet, &outsize);
 
       outlen = outsize;
     } else {
-      memcpy(out_packet, in_packet, caplen);
-      outlen = caplen;
+      memcpy(out_packet, in_packet, ip.caplen);
+      outlen = ip.caplen;
     }
 
     pcapnc_network_encode_uint32(outbuf+ 8, outlen);
     pcapnc_network_encode_uint32(outbuf+12, outlen);
 
+    double curr_time = ip.coarse_time + ip.nanosec * 1e-9;
     if ( prev_time < 0 ) {
 
       s3sim_sleep(param_wait_time);
@@ -218,49 +192,26 @@ int main(int argc, char *argv[])
         // do not sleep
       }
     }
+    prev_time = curr_time;
     debug_fprintf(stderr, "curr_time=%f\n", curr_time);
 
     ret = pcapnc_fwrite(outbuf, 1, PACKET_HEADER_SIZE+outlen, stdout);
 
     if ( use_rmapwrt_rpl ) {
 
-      ret = lp.read(inbuf, 1, PACKET_HEADER_SIZE);
-      if        ( ret == 0 ) {
-        // pcapnc_logerr(PROGNAME "End of input.\n");
-        return 0;
-      } else if ( ret < PACKET_HEADER_SIZE ) {
-        pcapnc_logerr(PROGNAME "Unexpected end of input (partial packet header).\n");
-        return ERROR_5;
-      }
-
-  //  const uint32_t coarse_time = lp.extract_uint32(inbuf+ 0);
-  //  const uint32_t fine_time   = lp.extract_uint32(inbuf+ 4);
-      const uint32_t caplen      = lp.extract_uint32(inbuf+ 8);
-  //  const uint32_t orglen      = lp.extract_uint32(inbuf+12);
-
-      if ( caplen > PACKET_DATA_MAX_SIZE ) {
-        pcapnc_logerr(PROGNAME "Unexpected packet header (caplen(=%" PRIx32 ") too long).\n", caplen);
-        return ERROR_6;
-      }
-
-      ret = lp.read(&(inbuf[PACKET_HEADER_SIZE]), 1, caplen);
-      if ( ret < caplen ) {
-        pcapnc_logerr(PROGNAME "Unexpected end of input (partial packet data).\n");
-        return ERROR_7;
-      }
+      ret = lp.read_packet_header(inbuf, sizeof(inbuf), PROGNAME, "input"); if ( ret > 0 ) return ret; if ( ret < 0 ) return 0;
+      ret = lp.read_packet_data(inbuf, PROGNAME, "input"); if ( ret > 0 ) return ret;
 
       // simulate network
 
-      const size_t num_path_address = rmap_num_path_address(inbuf + PACKET_HEADER_SIZE, caplen);
+      const size_t num_path_address = rmap_num_path_address(inbuf + PACKET_HEADER_SIZE, lp.caplen);
       const uint8_t *retnbuf = inbuf + PACKET_HEADER_SIZE + num_path_address; 
-      size_t retnlen = ((size_t) caplen) - num_path_address;
+      size_t retnlen = ((size_t) lp.caplen) - num_path_address;
 
       // check returned packet is expected
 
       rmapw.recv_reply(retnbuf, retnlen);
     }
-
-    prev_time = curr_time;
   }
   
   debug_fprintf(stderr, "ret=%zd\n", ret);
