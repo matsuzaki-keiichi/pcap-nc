@@ -162,11 +162,14 @@ int main(int argc, char *argv[])
     uint8_t *in_packet  = inbuf  + PACKET_HEADER_SIZE;
     uint8_t *out_packet = outbuf + PACKET_HEADER_SIZE;
     if ( use_rmapw ) {
-      const size_t insize  = ip.caplen;
+
       size_t outsize = PACKET_DATA_MAX_SIZE;
-
-      rmapw.send(in_packet, insize, out_packet, &outsize);
-
+      if ( rmapw.is_write_channel() ){
+        const size_t insize  = ip.caplen;
+        rmapw.send(in_packet, insize, out_packet, &outsize);
+      } else {
+        outsize = rmapw.generate_command_head(out_packet);
+      }
       outlen = outsize;
     } else {
       memcpy(out_packet, in_packet, ip.caplen);

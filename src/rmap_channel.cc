@@ -164,6 +164,11 @@ void rmap_write_channel::read_json(const char *file_name, const char *channel_na
     }
 }
 
+int rmap_write_channel::is_write_channel() const {
+    return this->instruction & 0x20;    
+}
+
+
 #define RMAP_PROTOCOL_ID 0x01
 
 size_t rmap_write_channel::generate_command_head(uint8_t trnsbuf[]){
