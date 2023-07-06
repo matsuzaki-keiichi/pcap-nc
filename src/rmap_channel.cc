@@ -164,8 +164,14 @@ void rmap_write_channel::read_json(const char *file_name, const char *channel_na
     }
 }
 
+#define RMAP_INST_WRITE  0x20
+#define RMAP_INST_REPLY  0x08
+
 int rmap_write_channel::is_write_channel() const {
-    return this->instruction & 0x20;    
+    return this->instruction & RMAP_INST_WRITE;    
+}
+int rmap_write_channel::has_responces() const {
+    return this->instruction & RMAP_INST_REPLY;    
 }
 
 
@@ -319,7 +325,7 @@ void rmap_write_channel::recv(const uint8_t recvbuf[], size_t recvsize, const ui
     *outsize_p = data_length;
 }
 
-void rmap_write_channel::reply(const uint8_t recvbuf[], size_t recvsize, uint8_t replybuf[], size_t *replylen){
+void rmap_write_channel::generate_write_reply(const uint8_t recvbuf[], size_t recvsize, uint8_t replybuf[], size_t *replylen){
     const uint8_t command_instruction = recvbuf[2];
     const int source_path_address_length = command_instruction & 0x03;
     const size_t n = source_path_address_length << 2;

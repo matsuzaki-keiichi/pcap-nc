@@ -69,7 +69,7 @@ static void test_write_channel(){
     uint8_t  replybuf[20];
     size_t   replysize   = sizeof(replybuf);
 
-    rmapw.reply(recvbuf, recvsize, replybuf, &replysize);
+    rmapw.generate_write_reply(recvbuf, recvsize, replybuf, &replysize);
 
     fprintf(stderr, "Transmitted RMAP Reply:\n");
     output_buffer(replybuf, replysize, 0);

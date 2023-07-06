@@ -30,9 +30,7 @@ static struct option long_options[] = {
 static std::string param_config  = ""; 
 static std::string param_channel = ""; 
 
-static int use_rmapw = 0;
-
-#define RMAP_INST_REPLY  0x08
+static int use_rmap_channel = 0;
 
 #define PROGNAME "pcap-rmap-target: "
 
@@ -43,7 +41,6 @@ int main(int argc, char *argv[])
   //// parse options
   
   int option_error    = 0;
-  int use_write_reply = 0;
   
   while (1) {
 
@@ -63,7 +60,7 @@ int main(int argc, char *argv[])
   }
   
   if ( param_config != "" && param_channel != "" ){
-    use_rmapw = 1;
+    use_rmap_channel = 1;
     // TODO fix tentative implementation.
   }
 
@@ -92,14 +89,12 @@ int main(int argc, char *argv[])
   ////
 
   class rmap_write_channel rmapw;
-  if ( use_rmapw ) {
+  if ( use_rmap_channel ) {
     rmapw.read_json(param_config.c_str(), param_channel.c_str());
-
-    if ( rmapw.instruction & RMAP_INST_REPLY ) use_write_reply = 1;
   }
 
   uint8_t linktype;
-  if ( use_rmapw && use_write_reply ) {
+  if ( use_rmap_channel && rmapw.has_responces() ) {
     linktype = 0x95; // SpaceWire
   } else {
     linktype = 0x94; // SpacePacket
@@ -116,7 +111,7 @@ int main(int argc, char *argv[])
     ret = ip.read_packet_header(inbuf, sizeof(inbuf), PROGNAME, "input"); if ( ret > 0 ) return ret; if ( ret < 0 ) return 0;
     ret = ip.read_packet_data(inbuf, PROGNAME, "input"); if ( ret > 0 ) return ret;
 
-    if ( !use_rmapw ) {
+    if ( !use_rmap_channel ) {
       ret = pcapnc_fwrite(inbuf,  1, PACKET_HEADER_SIZE+ip.caplen, stdout);
     } else {
 
@@ -127,10 +122,10 @@ int main(int argc, char *argv[])
       size_t outlen;
 
       // generate output
-      if ( use_write_reply ) {
+      if ( rmapw.has_responces() ) {
         uint8_t  replybuf[20]; outlen = 20;
 
-        rmapw.reply(in_packet, inlen, replybuf, &outlen); // generate RMAP Write Reply
+        rmapw.generate_write_reply(in_packet, inlen, replybuf, &outlen); // generate RMAP Write Reply
         memcpy(outbuf+PACKET_HEADER_SIZE, replybuf, outlen);
 
       } else {

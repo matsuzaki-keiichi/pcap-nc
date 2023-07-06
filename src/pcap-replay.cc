@@ -44,7 +44,7 @@
 
 #define OPTSTRING ""
 
-static int use_rmapw  = 0;
+static int use_rmap_channel  = 0;
 static int use_rmapwrt_rpl = 0;
 
 static struct option long_options[] = {
@@ -98,7 +98,7 @@ int main(int argc, char *argv[])
   }
   
   if ( param_config != "" && param_channel != "" ){
-    use_rmapw = 1;
+    use_rmap_channel = 1;
     // TODO fix tentative implementation.
   }
 
@@ -129,7 +129,7 @@ int main(int argc, char *argv[])
   
   class rmap_write_channel rmapw;
 
-  if ( use_rmapw ) {
+  if ( use_rmap_channel ) {
     rmapw.read_json(param_config.c_str(), param_channel.c_str());
   }
 
@@ -161,7 +161,7 @@ int main(int argc, char *argv[])
     size_t outlen;
     uint8_t *in_packet  = inbuf  + PACKET_HEADER_SIZE;
     uint8_t *out_packet = outbuf + PACKET_HEADER_SIZE;
-    if ( use_rmapw ) {
+    if ( use_rmap_channel ) {
 
       size_t outsize = PACKET_DATA_MAX_SIZE;
       if ( rmapw.is_write_channel() ){
