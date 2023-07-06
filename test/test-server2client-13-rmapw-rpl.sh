@@ -9,7 +9,7 @@ mkdir -p outdir
 CHAN='--config=sample.json --channel=channel2' # RMAP Write Command with Acknowledge
 PCAPNC='../bin/pcap-nc'
 
-OPTSEND='--original-time --interval=0.001 --after=5'
+OPTSEND='--original-time --interval=0.001 --before=2'
 OPTSERV='-l 14800'
 OPTCLNT='127.0.0.1 14800 --no-stdin'
 

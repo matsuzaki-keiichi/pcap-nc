@@ -25,6 +25,18 @@ do
 	    fi
 	    args_replay="$args_replay --after=$OPT"
 	    ;;
+	--before |                     --before=*)
+	    if [[ "$1" =~             ^--before= ]]; then
+		OPT=$(echo $1 | sed -e 's/^--before=//')
+	    elif [[ -z "$2" ]] || [[ "$2" =~ ^-+ ]]; then
+		echo              "'option --before' requires an argument." 1>&2
+		exit 1
+	    else
+		OPT="$2"
+		shift
+	    fi
+	    args_replay="$args_replay --before=$OPT"
+	    ;;
 	--config |                     --config=*)
 	    if [[ "$1" =~             ^--config= ]]; then
 		OPT=$(echo $1 | sed -e 's/^--config=//')

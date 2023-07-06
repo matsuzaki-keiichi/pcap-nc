@@ -48,7 +48,7 @@ static int use_rmap_channel  = 0;
 static int use_rmapwrt_rpl = 0;
 
 static struct option long_options[] = {
-  {"after",         required_argument, NULL, 'a'},
+  {"before",        required_argument, NULL, 'b'},
   {"config",        required_argument, NULL, 'c'},
   {"channel",       required_argument, NULL, 'n'},
   {"interval",      required_argument, NULL, 'i'},
@@ -84,7 +84,7 @@ int main(int argc, char *argv[])
     if ( c == -1 ) break;
     
     switch (c) {
-    case 'a': param_wait_time        = atof(optarg); if (param_wait_time    < 0.0) param_wait_time    = 0.0; break;
+    case 'b': param_wait_time        = atof(optarg); if (param_wait_time    < 0.0) param_wait_time    = 0.0; break;
     case 'c': param_config    = std::string(optarg); break;
     case 'n': param_channel   = std::string(optarg); break;
     case 'i': param_interval_sec     = atof(optarg); if (param_interval_sec < 0.0) param_interval_sec = 0.0; break;

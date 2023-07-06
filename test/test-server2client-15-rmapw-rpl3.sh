@@ -12,13 +12,10 @@ FIFO=/tmp/pcap-fifo
 mkfifo $FIFO
 
 PCAPNC='stdbuf -i 0 -o 0 ../bin/pcap-nc'
-OPTSEND='--original-time --interval=0.001 --after=5'
+OPTSEND='--original-time --interval=0.001 --before=2'
 OPTRSPN='--original-time --interval=0.0'
 OPTSERV='-l 14800'
 OPTCLNT='127.0.0.1 14800 --no-stdin'
-
-SVOPT1='-l 14800'
-SVOPT2='--interval=0.001 --after=5 --original-time'
 
 echo starting server
 $PCAPNC $OPTSERV $OPTSEND $CHAN --check-reply < test-spp.pcap >&/dev/null &
