@@ -6,6 +6,7 @@ args_nc=""
 args_replay=""
 args_store=""
 param_no_stdin=0
+param_check_reply=0
 
 SLEEP=0
 
@@ -85,6 +86,13 @@ do
 	--no-stdin)
 		param_no_stdin=1
 	    ;;
+	--check-reply)
+		param_check_reply=1
+	    ;;
+	--receive-reply |              --receive-reply=*)
+		echo              "'option --receive-reply' is prohibited." 1>&2
+		exit 1
+	    ;;
 	--sleep |                          --sleep=*)
 	    if [[ "$1" =~                 ^--sleep= ]]; then
 		OPT=$(echo $1 | sed -e 's/^--sleep=//')
@@ -112,8 +120,16 @@ done
 
 sleep $SLEEP
 
-if [[ "$param_no_stdin" -ne 0 ]]; then	
-	                                    stdbuf -i 0 -o 0 nc -q 0 -w 10 -N $args_nc | stdbuf -i 0 -o 0 $progdir/pcap-store $args_store
+FIFO=/tmp/pcapnc-fifo-$$
+
+if   [[ "$param_no_stdin" -ne 0 ]]; then	
+	stdbuf -i 0 -o 0 nc -q 0 -w 10 -N $args_nc | stdbuf -i 0 -o 0 $progdir/pcap-store $args_store
+elif [[ "$param_check_reply" -ne 0 ]]; then
+	mkfifo $FIFO
+    $progdir/pcap-replay $args_replay --receive-reply $FIFO |\
+	stdbuf -i 0 -o 0 nc -q 0 -w 10 -N $args_nc | stdbuf -i 0 -o 0 $progdir/pcap-store $args_store >$FIFO
+	rm $FIFO
 else
-	$progdir/pcap-replay $args_replay | stdbuf -i 0 -o 0 nc -q 0 -w 10 -N $args_nc | stdbuf -i 0 -o 0 $progdir/pcap-store $args_store
+	$progdir/pcap-replay $args_replay |\
+	stdbuf -i 0 -o 0 nc -q 0 -w 10 -N $args_nc | stdbuf -i 0 -o 0 $progdir/pcap-store $args_store
 fi

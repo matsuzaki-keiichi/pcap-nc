@@ -1,10 +1,13 @@
 pcap-nc
 Arguments:
-The combination of the argements for pcap-replay, pcap-store and those for nc and the following:
+The combination of the argements for pcap-replay(*1), pcap-store and those for nc and the following:
 --sleep second(int) :
   delay time to start nc command
 --no-stdin
   no input from stdin, which means pcap-replay is not invoked.
+--check-reply
+  check RMAP Write Reply
+*1: except for --receive-reply
 
 pcap-replay
 Arguments:
