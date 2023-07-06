@@ -167,7 +167,9 @@ int main(int argc, char *argv[])
       if ( rmapw.is_write_channel() ){
         const size_t insize  = ip.caplen;
         rmapw.send(in_packet, insize, out_packet, &outsize);
+//fprintf(stderr,"write channel\n");        
       } else {
+//fprintf(stderr,"read channel\n");        
         outsize = rmapw.generate_command_head(out_packet);
       }
       outlen = outsize;

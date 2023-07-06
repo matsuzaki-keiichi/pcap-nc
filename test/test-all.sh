@@ -14,6 +14,13 @@ function do_test(){
 rm -fr outdir
 mkdir -p outdir
 
+# case 21.
+#               Initiator       network       Target
+# xxx/PCAP => RMAPRD/PCAP => {RMAPRD/PCAP} => RMAPRD/PCAP
+
+do_test ./test-client2server-21-rmapr.sh expected/test-rmapr-out.pcap outdir/test-rmapr-out.pcap
+do_test ./test-server2client-21-rmapr.sh expected/test-rmapr-out.pcap outdir/test-rmapr-out.pcap
+
 # case 15.
 #                   Initiator         network         Target
 # SPP/PCAP => SPP/RMAPWC/PCAP => {SPP/RMAPWC/PCAP} => SPP/RMAPWC/PCAP
