@@ -17,6 +17,8 @@ class rmap_write_channel {
     void   recv                 (const uint8_t recvbuf[], size_t recvsize,    const uint8_t **outbuf_p, size_t *outsize_p ) const;
     void   generate_reply_head  (const uint8_t recvbuf[], size_t recvsize,    uint8_t replybuf[],       size_t *headlen   ) const;
     void   generate_write_reply (const uint8_t recvbuf[], size_t recvsize,    uint8_t replybuf[],       size_t *replylen  ) const;
+    void   generate_read_reply  (const uint8_t inbuf[],   size_t data_length, 
+                                 const uint8_t recvbuf[], size_t recvsize,    uint8_t replybuf[],       size_t *replylen  ) const;
     void   recv_reply           (const uint8_t recvbuf[], size_t recvsize                      ) const;
     size_t generate_command_head(                                             uint8_t trnsbuf[]) const;
 

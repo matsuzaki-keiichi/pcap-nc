@@ -362,6 +362,25 @@ void rmap_write_channel::generate_write_reply(const uint8_t recvbuf[], size_t re
     *replylen = headlen;
 }
 
+void rmap_write_channel::generate_read_reply(const uint8_t inbuf[], size_t data_length, const uint8_t recvbuf[], size_t recvsize, uint8_t replybuf[], size_t *replylen) const {
+    size_t headlen = *replylen;
+
+    this -> generate_reply_head(recvbuf, recvsize, replybuf, &headlen);
+
+    uint8_t *const cargo = replybuf + headlen - 8;
+    cargo[ 7] = 0x00;
+    cargo[ 8] = (data_length >> 16) & 0xFF;
+    cargo[ 9] = (data_length >>  8) & 0xFF;
+    cargo[10] = (data_length >>  0) & 0xFF;
+    cargo[11] = rmap_calculate_crc(cargo, 11);
+
+    uint8_t *const data = cargo + 12;
+    memcpy(data, inbuf, data_length);
+    data[data_length] = rmap_calculate_crc(data, data_length); /* Data CRC */
+
+    *replylen = headlen + 4 + data_length + 1 /* Data CRC */;
+}
+
 void rmap_write_channel::recv_reply(const uint8_t recvbuf[], size_t recvsize) const {
 
     // Wrire Reply (e.g. 0x28)

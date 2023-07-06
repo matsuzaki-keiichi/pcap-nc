@@ -22,17 +22,21 @@
 #define OPTSTRING ""
 
 static struct option long_options[] = {
-  {"config",   required_argument, NULL, 'c'},
-  {"channel",  required_argument, NULL, 'n'},
-  { NULL,      0,                 NULL,  0 }
+  {"config",    required_argument, NULL, 'c'},
+  {"channel",   required_argument, NULL, 'n'},
+  {"send-data", required_argument, NULL, 's'},
+  { NULL,       0,                 NULL,  0 }
 };
 
-static std::string param_config  = ""; 
-static std::string param_channel = ""; 
+static std::string param_config        = ""; 
+static std::string param_channel       = ""; 
+static std::string param_send_filename = ""; 
 
 static int use_rmap_channel = 0;
+static int use_rmaprd_rpl   = 0;
 
 #define PROGNAME "pcap-rmap-target: "
+
 
 int main(int argc, char *argv[])
 {
@@ -50,8 +54,9 @@ int main(int argc, char *argv[])
     if ( c == -1 ) break;
     
     switch (c) {
-    case 'c': param_config  = std::string(optarg); break;
-    case 'n': param_channel = std::string(optarg); break;
+    case 'c': param_config        = std::string(optarg); break;
+    case 'n': param_channel       = std::string(optarg); break;
+    case 's': param_send_filename = std::string(optarg); break;
     default: option_error=1; break;
     }
   }
@@ -62,6 +67,13 @@ int main(int argc, char *argv[])
   if ( param_config != "" && param_channel != "" ){
     use_rmap_channel = 1;
     // TODO fix tentative implementation.
+  }
+
+  pcap_file lp;
+  if ( param_send_filename != ""  ){
+    const int r_ret = lp.read_head(param_send_filename.c_str()); if ( r_ret ) return r_ret;
+    use_rmaprd_rpl = 1;
+    // TODO should implement consistency check with this->instruction
   }
 
   ////
@@ -125,9 +137,21 @@ int main(int argc, char *argv[])
       if ( rmapw.has_responces() ) {
         uint8_t  replybuf[20]; outlen = 20;
 
-        rmapw.generate_write_reply(in_packet, inlen, replybuf, &outlen); // generate RMAP Write Reply
-        memcpy(outbuf+PACKET_HEADER_SIZE, replybuf, outlen);
+        if ( !use_rmaprd_rpl ) {
+          // generate RMAP Write Reply
+          rmapw.generate_write_reply(in_packet, inlen, replybuf, &outlen);
+        } else {
+          // generate RMAP READ Reply
+          uint8_t sendbuf[999];
+          
+          ret = lp.read_packet_header(sendbuf, sizeof(sendbuf), PROGNAME, "input"); if ( ret > 0 ) return ret; if ( ret < 0 ) return 0;
+          ret = lp.read_packet_data(sendbuf, PROGNAME, "input"); if ( ret > 0 ) return ret;
+          uint8_t *send_packet  = sendbuf  + PACKET_HEADER_SIZE;
+          const size_t sendsize = lp.caplen;
 
+          rmapw.generate_read_reply(send_packet, sendsize, in_packet, inlen, replybuf, &outlen);
+        }
+        memcpy(outbuf+PACKET_HEADER_SIZE, replybuf, outlen);
       } else {
         const uint8_t *out_packet; 
 

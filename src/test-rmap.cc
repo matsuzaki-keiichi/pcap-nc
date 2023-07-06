@@ -107,6 +107,18 @@ void test_read_channel(){
 
     fprintf(stderr, "Received RMAP Read Command:\n");
     output_buffer(recvbuf, recvsize, 0);
+
+    //// Generate and Transmit RMAP Read Reply
+
+    uint8_t  inbuf [10] = {0x12, 0x34, 0x56, 0x78, 0x9a,  0xFE, 0xDC, 0xBA, 0x98, 0x76};
+    uint32_t insize     = sizeof(inbuf);
+    uint8_t  replybuf[999];
+    size_t   replysize   = sizeof(replybuf);
+
+    rmapw.generate_read_reply(inbuf, insize, recvbuf, recvsize, replybuf, &replysize);
+
+    fprintf(stderr, "Transmitted RMAP Reply:\n");
+    output_buffer(replybuf, replysize, 0);
 }
 
 int main(int argc, char *argv[])
