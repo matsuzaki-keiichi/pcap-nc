@@ -165,7 +165,7 @@ int main(int argc, char *argv[])
       const size_t insize  = ip.caplen;
       size_t outsize = PACKET_DATA_MAX_SIZE;
 
-      rmapw.send_witouht_ack(in_packet, insize, out_packet, &outsize);
+      rmapw.send(in_packet, insize, out_packet, &outsize);
 
       outlen = outsize;
     } else {

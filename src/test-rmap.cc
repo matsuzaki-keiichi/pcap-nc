@@ -29,7 +29,7 @@ int main(int argc, char *argv[])
     uint8_t  sendbuf[999];
     size_t   sendsize   = sizeof(sendbuf);
 
-    rmapw.send_witouht_ack(inbuf, insize, sendbuf, &sendsize);
+    rmapw.send(inbuf, insize, sendbuf, &sendsize);
 
     const size_t p = rmapw.num_dpa_padding;
     const size_t q = sendsize+p;

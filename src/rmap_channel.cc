@@ -130,6 +130,7 @@ void rmap_write_channel::read_json(const char *file_name, const char *channel_na
         this->source_logical_address      = read_hex_uint8 (channel, "source_logical_address"     , channel_name);
         this->instruction                 = read_hex_uint8 (channel, "instruction"                , channel_name);
         this->memory_address              = read_hex_uint40(channel, "memory_address"             , channel_name);
+        this->data_length = 0;
 
         if ( this->instruction & 0x03 ) {
             pcapnc_logerr("Lower 2bits of the istruction (%02x) of the channel '%s' shall be 0.\n", this->instruction, channel_name);
@@ -149,7 +150,7 @@ void rmap_write_channel::read_json(const char *file_name, const char *channel_na
 
 #define RMAP_PROTOCOL_ID 0x01
 
-void rmap_write_channel::send_witouht_ack(const uint8_t inbuf[], size_t insize, uint8_t sendbuf[], size_t *sendsize_p){
+size_t rmap_write_channel::generate_command_head(uint8_t trnsbuf[]){
     const int m = this->num_dpa;
     const int n = this->num_spa + this->num_spa_padding;
 
@@ -166,9 +167,9 @@ void rmap_write_channel::send_witouht_ack(const uint8_t inbuf[], size_t insize, 
     //  ?b: no increment / increment
     // xxb: source path address length
 
-    memcpy(sendbuf, this->d_path_address, this->num_dpa);
+    memcpy(trnsbuf, this->d_path_address, this->num_dpa);
 
-    uint8_t *const cargo = sendbuf + m;
+    uint8_t *const cargo = trnsbuf + m;
 
     cargo[ 0] = this->destination_logical_address;
     cargo[ 1] = RMAP_PROTOCOL_ID;
@@ -187,23 +188,34 @@ void rmap_write_channel::send_witouht_ack(const uint8_t inbuf[], size_t insize, 
     cargo[ 9+n] = (this->memory_address >> 16) & 0xFF;
     cargo[10+n] = (this->memory_address >>  8) & 0xFF;
     cargo[11+n] = (this->memory_address >>  0) & 0xFF;
-    cargo[12+n] = (      insize         >> 16) & 0xFF;
-    cargo[13+n] = (      insize         >>  8) & 0xFF;
-    cargo[14+n] = (      insize         >>  0) & 0xFF;
-    cargo[15+n] = rmap_calculate_crc(cargo, 15+n);
+    cargo[12+n] = (this->data_length    >> 16) & 0xFF;
+    cargo[13+n] = (this->data_length    >>  8) & 0xFF;
+    cargo[14+n] = (this->data_length    >>  0) & 0xFF;
+    cargo[15+n] = rmap_calculate_crc(cargo, 15+n); /* Header CRC */
 
-    size_t sendsize0 = 16+m+n+insize+1;
+    return 16+m+n;
+}
 
-    if ( sendsize0 > *sendsize_p ) {
-        pcapnc_logerr("output size (%zu) exceeds the buffer size (%zu).\n", sendsize0, *sendsize_p);
+void rmap_write_channel::send(const uint8_t inbuf[], size_t data_length, uint8_t sendbuf[], size_t *sendsize_p){
+
+    // this method should be called only for RMAP Write Command 
+    // i.e. this->instruction & 0x20 != 0
+
+    this->data_length = data_length;
+
+    const size_t sendsize0 = this->generate_command_head(sendbuf);
+    const size_t sendsize1 = sendsize0 + data_length + 1 /* CRC length */;
+
+    if ( sendsize1 > *sendsize_p ) {
+        pcapnc_logerr("output size (%zu) exceeds the buffer size (%zu).\n", sendsize1, *sendsize_p);
         exit(1);        
     }
 
-    uint8_t *data = cargo+16+n;
-    memcpy(data, inbuf, insize); // TODO boundary chcek
-    data[insize] = rmap_calculate_crc(data, insize);
+    uint8_t *const data = sendbuf + sendsize0;
+    memcpy(data, inbuf, data_length);
+    data[data_length] = rmap_calculate_crc(data, data_length); /* Data CRC */
 
-    *sendsize_p = sendsize0;
+    *sendsize_p = sendsize1;
     
     this->transaction_id = this->transaction_id + 1;
 }
