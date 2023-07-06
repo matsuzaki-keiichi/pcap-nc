@@ -177,7 +177,7 @@ int rmap_write_channel::has_responces() const {
 
 #define RMAP_PROTOCOL_ID 0x01
 
-size_t rmap_write_channel::generate_command_head(uint8_t trnsbuf[]){
+size_t rmap_write_channel::generate_command_head(uint8_t trnsbuf[]) const {
     const int m = this->num_dpa;
     const int n = this->num_spa + this->num_spa_padding;
 
@@ -223,7 +223,7 @@ size_t rmap_write_channel::generate_command_head(uint8_t trnsbuf[]){
     return 16+m+n;
 }
 
-void rmap_write_channel::send(const uint8_t inbuf[], size_t data_length, uint8_t sendbuf[], size_t *sendsize_p){
+void rmap_write_channel::send(const uint8_t inbuf[], size_t data_length, uint8_t sendbuf[], size_t *sendsize_p) {
 
     // this method should be called only for RMAP Write Command 
     // i.e. this->instruction & 0x20 != 0
@@ -247,7 +247,7 @@ void rmap_write_channel::send(const uint8_t inbuf[], size_t data_length, uint8_t
     this->transaction_id = this->transaction_id + 1;
 }
 
-void rmap_write_channel::recv(const uint8_t recvbuf[], size_t recvsize, const uint8_t **outbuf_p, size_t *outsize_p){
+void rmap_write_channel::recv(const uint8_t recvbuf[], size_t recvsize, const uint8_t **outbuf_p, size_t *outsize_p) const {
     const uint8_t *const cargo = recvbuf;
 
     if ( cargo[0] != this->destination_logical_address ){
@@ -325,7 +325,7 @@ void rmap_write_channel::recv(const uint8_t recvbuf[], size_t recvsize, const ui
     *outsize_p = data_length;
 }
 
-void rmap_write_channel::generate_write_reply(const uint8_t recvbuf[], size_t recvsize, uint8_t replybuf[], size_t *replylen){
+void rmap_write_channel::generate_reply_head(const uint8_t recvbuf[], size_t recvsize, uint8_t replybuf[], size_t *headlen) const {
     const uint8_t command_instruction = recvbuf[2];
     const int source_path_address_length = command_instruction & 0x03;
     const size_t n = source_path_address_length << 2;
@@ -348,12 +348,21 @@ void rmap_write_channel::generate_write_reply(const uint8_t recvbuf[], size_t re
     cargo[4] = this->destination_logical_address;
     cargo[5] = recvbuf[ 5+n];
     cargo[6] = recvbuf[ 6+n];
-    cargo[7] = rmap_calculate_crc(cargo, 7);
-
-    *replylen = m+8;
+    *headlen = m+8;
 }
 
-void rmap_write_channel::recv_reply(const uint8_t recvbuf[], size_t recvsize){
+void rmap_write_channel::generate_write_reply(const uint8_t recvbuf[], size_t recvsize, uint8_t replybuf[], size_t *replylen) const {
+    size_t headlen = *replylen;
+
+    this -> generate_reply_head(recvbuf, recvsize, replybuf, &headlen);
+
+    uint8_t *const cargo = replybuf + headlen - 8;
+
+    cargo[7] = rmap_calculate_crc(cargo, 7);
+    *replylen = headlen;
+}
+
+void rmap_write_channel::recv_reply(const uint8_t recvbuf[], size_t recvsize) const {
 
     // Wrire Reply (e.g. 0x28)
     // Instruction field = RMAP Reply
