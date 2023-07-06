@@ -48,6 +48,7 @@ static int use_rmap_channel  = 0;
 static int use_rmapwrt_rpl = 0;
 
 static struct option long_options[] = {
+  {"after",         required_argument, NULL, 'a'},
   {"before",        required_argument, NULL, 'b'},
   {"config",        required_argument, NULL, 'c'},
   {"channel",       required_argument, NULL, 'n'},
@@ -57,7 +58,8 @@ static struct option long_options[] = {
   { NULL,                           0, NULL,  0 }
 };
 
-static double      param_wait_time     =  0.0;
+static double      param_after_wtime   =  0.0;
+static double      param_before_wtime  =  0.0;
 static double      param_interval_sec  = -1.0;
 static std::string param_config        =  ""; 
 static std::string param_channel       =  ""; 
@@ -84,7 +86,8 @@ int main(int argc, char *argv[])
     if ( c == -1 ) break;
     
     switch (c) {
-    case 'b': param_wait_time        = atof(optarg); if (param_wait_time    < 0.0) param_wait_time    = 0.0; break;
+    case 'a': param_after_wtime      = atof(optarg); if (param_after_wtime  < 0.0) param_after_wtime  = 0.0; break;
+    case 'b': param_before_wtime     = atof(optarg); if (param_before_wtime < 0.0) param_before_wtime = 0.0; break;
     case 'c': param_config    = std::string(optarg); break;
     case 'n': param_channel   = std::string(optarg); break;
     case 'i': param_interval_sec     = atof(optarg); if (param_interval_sec < 0.0) param_interval_sec = 0.0; break;
@@ -108,7 +111,7 @@ int main(int argc, char *argv[])
     use_rmapwrt_rpl = 1;
   }
 
-  debug_fprintf(stderr, "param_wait_time=%f\n", param_wait_time);
+  debug_fprintf(stderr, "param_before_wtime=%f\n", param_before_wtime);
 
   ////
     
@@ -135,8 +138,12 @@ int main(int argc, char *argv[])
 
 //// int i=0;
   while(1){
-    ret = ip.read_packet_header(inbuf, sizeof(inbuf), PROGNAME, "file"); if ( ret > 0 ) return ret; if ( ret < 0 ) return 0;
-    ret = ip.read_packet_data(inbuf, PROGNAME, "file"); if ( ret > 0 ) return ret;
+    ret = ip.read_packet_header(inbuf, sizeof(inbuf), PROGNAME, "file"); 
+    if ( ret > 0 ) return ret;                                                                      
+    if ( ret < 0 ) { s3sim_sleep(param_after_wtime); return 0; }
+
+    ret = ip.read_packet_data(inbuf, PROGNAME, "file"); 
+    if ( ret > 0 ) return ret;
 
     // generated output (ending conversion is performed if needed)
 
@@ -184,7 +191,7 @@ int main(int argc, char *argv[])
     double curr_time = ip.coarse_time + ip.nanosec * 1e-9;
     if ( prev_time < 0 ) {
 
-      s3sim_sleep(param_wait_time);
+      s3sim_sleep(param_before_wtime);
 
     } else {
       const double tdiff = curr_time - prev_time;
@@ -204,8 +211,11 @@ int main(int argc, char *argv[])
 
     if ( use_rmapwrt_rpl ) {
 
-      ret = lp.read_packet_header(inbuf, sizeof(inbuf), PROGNAME, "input"); if ( ret > 0 ) return ret; if ( ret < 0 ) return 0;
-      ret = lp.read_packet_data(inbuf, PROGNAME, "input"); if ( ret > 0 ) return ret;
+      ret = lp.read_packet_header(inbuf, sizeof(inbuf), PROGNAME, "input"); 
+      if ( ret > 0 ) return ret; 
+      if ( ret < 0 ) { s3sim_sleep(param_after_wtime); return 0; }
+      ret = lp.read_packet_data(inbuf, PROGNAME, "input"); 
+      if ( ret > 0 ) return ret;
 
       // simulate network
 
