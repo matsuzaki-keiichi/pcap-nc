@@ -177,7 +177,7 @@ int rmap_write_channel::has_responces() const {
 
 #define RMAP_PROTOCOL_ID 0x01
 
-size_t rmap_write_channel::generate_command_head(uint8_t trnsbuf[]) const {
+size_t rmap_write_channel::generate_command_head(uint8_t trnsbuf[]) {
     const int m = this->num_dpa;
     const int n = this->num_spa + this->num_spa_padding;
 
@@ -220,10 +220,12 @@ size_t rmap_write_channel::generate_command_head(uint8_t trnsbuf[]) const {
     cargo[14+n] = (this->data_length    >>  0) & 0xFF;
     cargo[15+n] = rmap_calculate_crc(cargo, 15+n); /* Header CRC */
 
+    this->transaction_id = this->transaction_id + 1;
+
     return 16+m+n;
 }
 
-void rmap_write_channel::send(const uint8_t inbuf[], size_t data_length, uint8_t sendbuf[], size_t *sendsize_p) {
+void rmap_write_channel::write_send(const uint8_t inbuf[], size_t data_length, uint8_t sendbuf[], size_t *sendsize_p) {
 
     // this method should be called only for RMAP Write Command 
     // i.e. this->instruction & 0x20 != 0
@@ -242,12 +244,10 @@ void rmap_write_channel::send(const uint8_t inbuf[], size_t data_length, uint8_t
     memcpy(data, inbuf, data_length);
     data[data_length] = rmap_calculate_crc(data, data_length); /* Data CRC */
 
-    *sendsize_p = sendsize1;
-    
-    this->transaction_id = this->transaction_id + 1;
+    *sendsize_p = sendsize1;    
 }
 
-void rmap_write_channel::recv(const uint8_t recvbuf[], size_t recvsize, const uint8_t **outbuf_p, size_t *outsize_p) const {
+void rmap_write_channel::write_recv(const uint8_t recvbuf[], size_t recvsize, const uint8_t **outbuf_p, size_t *outsize_p) const {
     const uint8_t *const cargo = recvbuf;
 
     if ( cargo[0] != this->destination_logical_address ){
@@ -381,7 +381,7 @@ void rmap_write_channel::generate_read_reply(const uint8_t inbuf[], size_t data_
     *replylen = headlen + 4 + data_length + 1 /* Data CRC */;
 }
 
-void rmap_write_channel::recv_reply(const uint8_t recvbuf[], size_t recvsize) const {
+void rmap_write_channel::recv_reply(const uint8_t recvbuf[], size_t recvsize, const uint8_t **outbuf_p, size_t *outsize_p) const {
 
     // Wrire Reply (e.g. 0x28)
     // Instruction field = RMAP Reply
@@ -395,7 +395,7 @@ void rmap_write_channel::recv_reply(const uint8_t recvbuf[], size_t recvsize) co
 
     const uint8_t *const cargo = recvbuf;
 
-    if ( recvsize != 8 ){
+    if ( this->is_write_channel() && recvsize != 8 ){
         pcapnc_logerr("Length of a Write Reply is not 8 but 0x%zu.\n", 
             recvsize);
         return;       
@@ -435,10 +435,30 @@ void rmap_write_channel::recv_reply(const uint8_t recvbuf[], size_t recvsize) co
         return;       
     }
 
-    const uint8_t crc = rmap_calculate_crc(cargo, 7);
-    if ( cargo[7] != crc ){
-        pcapnc_logerr("CRC Error.\n");
-        return;       
+    if ( this->is_write_channel() ) {
+        const uint8_t crc = rmap_calculate_crc(cargo, 7);
+        if ( cargo[7] != crc ){
+            pcapnc_logerr("Header CRC Error.\n");
+            return;       
+        }
+    } else {
+        const uint8_t header_crc = rmap_calculate_crc(cargo, 11);
+        const size_t data_length = (((size_t) cargo[ 8]) << 16)
+                                 + (((size_t) cargo[ 9]) <<  8)
+                                 + (((size_t) cargo[10]) <<  0);
+        if ( cargo[11] != header_crc ) {
+            pcapnc_logerr("Header CRC Error.\n");
+            return;       
+        }
+
+        const uint8_t *const data = cargo + 12;
+        const uint8_t data_crc = rmap_calculate_crc(data, data_length); /* Data CRC */
+        if ( data[data_length] != data_crc ) {
+            pcapnc_logerr("Data CRC Error.\n");
+        }
+
+        *outbuf_p  = data;
+        *outsize_p = data_length;
     }
     return;
 }

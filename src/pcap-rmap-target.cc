@@ -155,7 +155,7 @@ int main(int argc, char *argv[])
       } else {
         const uint8_t *out_packet; 
 
-        rmapw.recv(in_packet, inlen, &out_packet, &outlen); // extract Service Data Unit (e.g. Space Packet)
+        rmapw.write_recv(in_packet, inlen, &out_packet, &outlen); // extract Service Data Unit (e.g. Space Packet)
         memcpy(outbuf+PACKET_HEADER_SIZE, out_packet, outlen);
       } 
 

@@ -45,7 +45,7 @@
 #define OPTSTRING ""
 
 static int use_rmap_channel  = 0;
-static int use_rmapwrt_rpl = 0;
+static int use_rmap_reply = 0;
 
 static struct option long_options[] = {
   {"after",         required_argument, NULL, 'a'},
@@ -108,7 +108,7 @@ int main(int argc, char *argv[])
   pcap_file lp;
   if ( param_replyfile != ""  ){
     const int r_ret = lp.read_head(param_replyfile.c_str()); if ( r_ret ) return r_ret;
-    use_rmapwrt_rpl = 1;
+    use_rmap_reply = 1;
   }
 
   debug_fprintf(stderr, "param_before_wtime=%f\n", param_before_wtime);
@@ -173,7 +173,7 @@ int main(int argc, char *argv[])
       size_t outsize = PACKET_DATA_MAX_SIZE;
       if ( rmapw.is_write_channel() ){
         const size_t insize  = ip.caplen;
-        rmapw.send(in_packet, insize, out_packet, &outsize);
+        rmapw.write_send(in_packet, insize, out_packet, &outsize);
 //fprintf(stderr,"write channel\n");        
       } else {
 //fprintf(stderr,"read channel\n");        
@@ -209,7 +209,7 @@ int main(int argc, char *argv[])
 
     ret = pcapnc_fwrite(outbuf, 1, PACKET_HEADER_SIZE+outlen, stdout);
 
-    if ( use_rmapwrt_rpl ) {
+    if ( use_rmap_reply ) {
 
       ret = lp.read_packet_header(inbuf, sizeof(inbuf), PROGNAME, "input"); 
       if ( ret > 0 ) return ret; 
@@ -225,7 +225,10 @@ int main(int argc, char *argv[])
 
       // check returned packet is expected
 
-      rmapw.recv_reply(retnbuf, retnlen);
+      const uint8_t *outbuf;
+      size_t outsize;
+
+      rmapw.recv_reply(retnbuf, retnlen, &outbuf, &outsize);
     }
   }
   

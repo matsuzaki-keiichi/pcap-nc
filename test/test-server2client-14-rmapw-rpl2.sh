@@ -18,7 +18,7 @@ OPTSERV='-l 14800'
 OPTCLNT='127.0.0.1 14800 --no-stdin'
 
 echo starting server
-$PCAPNC $OPTSERV $OPTSEND $CHAN < test-spp.pcap >outdir/test-rpl-out.pcap &
+$PCAPNC $OPTSERV $OPTSEND $CHAN --after=1.0 < test-spp.pcap >outdir/test-rpl-out.pcap &
 sleep 1
 echo starting client
 $PCAPNC $OPTCLNT --link-type=spw <$FIFO | ../bin/pcap-rmap-target $CHAN | ../bin/pcap-replay $OPTRSPN >$FIFO
