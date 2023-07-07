@@ -365,11 +365,18 @@ void rmap_channel::generate_read_reply(const uint8_t inpbuf[], size_t inplen, co
  @param rcvbuf [in]
  @param rcvlen [in]
  @param outbuf [out]
+  Note: NULL for a read channel.
  @param outlen [in,out]
+  Note: 0 for a read channel.
  */
 
 void rmap_channel::validate_command(const uint8_t rcvbuf[], size_t rcvlen, const uint8_t *&outbuf, size_t &outlen) const {
     const uint8_t *const cargo = rcvbuf;
+
+    if ( !this->is_write_channel() && rcvlen != 16 ){
+        pcapnc_logerr("Length of a Read Command is not 16 but 0x%zu.\n", rcvlen);
+        return;       
+    }
 
     if ( cargo[0] != this->destination_logical_address ){
         pcapnc_logerr("Destination Logical Address is not 0x%02x but 0x%02x.\n", 
@@ -410,6 +417,7 @@ void rmap_channel::validate_command(const uint8_t rcvbuf[], size_t rcvlen, const
         +                    (((uint64_t) cargo[ 9+n]) << 16)
         +                    (((uint64_t) cargo[10+n]) <<  8) 
         +                    (((uint64_t) cargo[11+n]) <<  0);
+
     if ( address != this->memory_address ){
         pcapnc_logerr("Write Address is not 0x%10" PRIx64 " but 0x%10" PRIx64 ".\n", 
             this->memory_address, address);
@@ -428,29 +436,33 @@ void rmap_channel::validate_command(const uint8_t rcvbuf[], size_t rcvlen, const
     const size_t   outlen1 = (((size_t) cargo[12+n]) << 16)
         +                    (((size_t) cargo[13+n]) <<  8) 
         +                    (((size_t) cargo[14+n]) <<  0);
-
-    if ( 16+n+outlen1+1 != rcvlen ){
-        pcapnc_logerr("Data Length (%zu) is not consistent received packet size (%zu).\n", 
-            outlen1, rcvlen);
-        return;       
+    if ( !this->is_write_channel() ) {
+        outbuf = NULL;
+        outlen = 0;
+    } else {
+        if ( 16+n+outlen1+1 != rcvlen ){
+            pcapnc_logerr("Data Length (%zu) is not consistent received packet size (%zu).\n", 
+                outlen1, rcvlen);
+            return;       
+        }
+        const uint8_t *const data = cargo + 16 + n;
+        const uint8_t data_crc = rmap_calculate_crc(data, outlen1);
+        if ( data[outlen1] != data_crc ){
+            pcapnc_logerr("Data CRC Error.\n");
+            return;
+        }       
+        outbuf = data;
+        outlen = outlen1;
     }
-
-    const uint8_t *const data = cargo + 16 + n;
-    const uint8_t data_crc = rmap_calculate_crc(data, outlen1);
-    if ( data[outlen1] != data_crc ){
-        pcapnc_logerr("Data CRC Error.\n");
-        return;       
-    }
-
-    outbuf = data;
-    outlen = outlen1;
 }
 
 /**
  @param rcvbuf [in]
  @param rcvlen [in]
  @param outbuf [out]
+  Note: NULL for a write channel.
  @param outlen [in,out]
+  Note: 0 for a write channel.
  */
 
 void rmap_channel::validate_reply(const uint8_t rcvbuf[], size_t rcvlen, const uint8_t *&outbuf, size_t &outlen) const {
@@ -468,8 +480,7 @@ void rmap_channel::validate_reply(const uint8_t rcvbuf[], size_t rcvlen, const u
     const uint8_t *const cargo = rcvbuf;
 
     if ( this->is_write_channel() && rcvlen != 8 ){
-        pcapnc_logerr("Length of a Write Reply is not 8 but 0x%zu.\n", 
-            rcvlen);
+        pcapnc_logerr("Length of a Write Reply is not 8 but 0x%zu.\n", rcvlen);
         return;       
     }
     if ( cargo[0] != this->source_logical_address ){
@@ -513,6 +524,8 @@ void rmap_channel::validate_reply(const uint8_t rcvbuf[], size_t rcvlen, const u
             pcapnc_logerr("Header CRC Error.\n");
             return;       
         }
+        outbuf = NULL;
+        outlen = 0;
     } else {
         const uint8_t header_crc = rmap_calculate_crc(cargo, 11);
         const size_t outlen1 = (((size_t) cargo[ 8]) << 16)
