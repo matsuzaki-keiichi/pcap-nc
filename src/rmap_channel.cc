@@ -177,7 +177,14 @@ int rmap_channel::has_responces() const {
 
 #define RMAP_PROTOCOL_ID 0x01
 
-size_t rmap_channel::generate_command_head(uint8_t trnsbuf[]) {
+/**
+ @param cmdbuf [out] 
+  Note: size shall be >=40(=16+12+12)
+ @param cmdlen [in,out]
+  Note: 16..40
+ */
+
+void rmap_channel::generate_command_head(uint8_t hedbuf[], size_t &hedlen) {
     // This function generate a part of Command Header also for RMAP Write command
 
     const int m = this->num_dpa;
@@ -196,9 +203,9 @@ size_t rmap_channel::generate_command_head(uint8_t trnsbuf[]) {
     //  ?b: no increment / increment
     // xxb: source path address length
 
-    memcpy(trnsbuf, this->d_path_address, this->num_dpa);
+    memcpy(hedbuf, this->d_path_address, this->num_dpa);
 
-    uint8_t *const cargo = trnsbuf + m;
+    uint8_t *const cargo = hedbuf + m;
 
     cargo[ 0] = this->destination_logical_address;
     cargo[ 1] = RMAP_PROTOCOL_ID;
@@ -224,93 +231,145 @@ size_t rmap_channel::generate_command_head(uint8_t trnsbuf[]) {
 
     this->transaction_id = this->transaction_id + 1;
 
-    return 16+m+n;
+    hedlen = 16+m+n;
 }
 
-size_t rmap_channel::generate_read_command(uint8_t trnsbuf[]) {
-    return this->generate_command_head(trnsbuf);
+/**
+ @param cmdbuf [out]
+  Note: size shall be >=40(=16+12+12)
+ @param cmdlen [in,out]
+  Note: 16..40
+ */
+
+void rmap_channel::generate_read_command(uint8_t cmdbuf[], size_t &cmdlen) {
+    this->generate_command_head(cmdbuf, cmdlen);
 }
 
-void rmap_channel::generate_write_command(const uint8_t inputbuf[], size_t inputlen, uint8_t trnsbuf[], size_t &trnslen) {
+/**
+ @param inpbuf [in]
+ @param inplen [in]
+ @param cmdbuf [out]
+  Note: size shall be >=40(=16+12+12)+inplen
+ @param cmdlen [in,out]
+  Note: [16..40]+inplen
+ */
+
+void rmap_channel::generate_write_command(const uint8_t inpbuf[], size_t inplen, uint8_t cmdbuf[], size_t &cmdlen) {
 
     // this method should be called only for RMAP Write Command 
     // i.e. this->instruction & 0x20 != 0
 
-    this->data_length = inputlen;
+    this->data_length = inplen;
 
-    const size_t trnslen0 = this->generate_command_head(trnsbuf);
-    const size_t trnslen1 = trnslen0 + inputlen + 1 /* CRC length */;
+    size_t hedlen;
+    this->generate_command_head(cmdbuf, hedlen);
 
-    if ( trnslen1 > trnslen ) {
-        pcapnc_logerr("output size (%zu) exceeds the buffer size (%zu).\n", trnslen1, trnslen);
+    const size_t cmdlen1 = hedlen + inplen + 1 /* CRC length */;
+
+    if ( cmdlen1 > cmdlen ) {
+        pcapnc_logerr("output size (%zu) exceeds the buffer size (%zu).\n", cmdlen1, cmdlen);
         exit(1);        
     }
+    cmdlen = cmdlen1;    
 
-    uint8_t *const data = trnsbuf + trnslen0;
-    memcpy(data, inputbuf, inputlen);
-    data[data_length] = rmap_calculate_crc(data, inputlen); /* Data CRC */
-
-    trnslen = trnslen1;    
+    uint8_t *const data = cmdbuf + hedlen;
+    memcpy(data, inpbuf, inplen);
+    data[inplen] = rmap_calculate_crc(data, inplen); /* Data CRC */
 }
 
-void rmap_channel::generate_reply_head(const uint8_t recvbuf[], size_t recvlen, uint8_t replybuf[], size_t &replylen) const {
-    const uint8_t command_instruction = recvbuf[2];
+/**
+ @param rcvbuf [in]
+ @param rcvlen [in]
+ @param rplbuf [out]
+  Note: size shall be >=20(=8+12)
+ @param rpllen [in,out]
+  Note: 8..20
+ */
+
+void rmap_channel::generate_reply_head(const uint8_t rcvbuf[], size_t rcvlen, uint8_t hedbuf[], size_t &hedlen) const {
+    const uint8_t command_instruction = rcvbuf[2];
     const int source_path_address_length = command_instruction & 0x03;
     const size_t n = source_path_address_length << 2;
     const uint8_t status = 0; // TODO implement status ??
 
     size_t m=0;
     for ( size_t i=0; i<n ; i++ ){
-        uint8_t ad = recvbuf[4+i];
+        uint8_t ad = rcvbuf[4+i];
         if ( ad == 0 && i != n-1 ) continue;
-        replybuf[m++] = ad;
+        hedbuf[m++] = ad;
     }
 
     const uint8_t reply_instruction = command_instruction & (0xFF - 0x43);
     
-    uint8_t *const cargo = replybuf + m;
+    uint8_t *const cargo = hedbuf + m;
     cargo[0] = this->source_logical_address;
     cargo[1] = RMAP_PROTOCOL_ID;
     cargo[2] = reply_instruction;
     cargo[3] = status;
     cargo[4] = this->destination_logical_address;
-    cargo[5] = recvbuf[ 5+n];
-    cargo[6] = recvbuf[ 6+n];
-    replylen = m+8;
+    cargo[5] = rcvbuf[ 5+n];
+    cargo[6] = rcvbuf[ 6+n];
+    hedlen = m+8;
 }
 
-void rmap_channel::generate_write_reply(const uint8_t recvbuf[], size_t recvlen, uint8_t replybuf[], size_t &replylen) const {
-    size_t headlen = replylen;
+/**
+ @param rcvbuf [in]
+ @param rcvlen [in]
+ @param rplbuf [out]
+  Note: size shall be >=20(=8+12)
+ @param rpllen [in,out]
+  Note: 8..20
+ */
 
-    this -> generate_reply_head(recvbuf, recvlen, replybuf, headlen);
+void rmap_channel::generate_write_reply(const uint8_t rcvbuf[], size_t rcvlen, uint8_t rplbuf[], size_t &rpllen) const {
+    size_t hedlen = rpllen;
+    this -> generate_reply_head(rcvbuf, rcvlen, rplbuf, hedlen);
 
-    uint8_t *const cargo = replybuf + headlen - 8;
+    uint8_t *const cargo = rplbuf + hedlen - 8;
+    cargo[7] = rmap_calculate_crc(cargo, 7); /* Header CRC */
 
-    cargo[7] = rmap_calculate_crc(cargo, 7);
-    replylen = headlen;
+    rpllen = hedlen;
 }
 
-void rmap_channel::generate_read_reply(const uint8_t inputbuf[], size_t inputlen, const uint8_t recvbuf[], size_t recvlen, uint8_t replybuf[], size_t &replylen) const {
-    size_t headlen = replylen;
+/**
+ @param inpbuf [in]
+ @param inplen [in]
+ @param rcvbuf [in]
+ @param rcvlen [in]
+ @param rplbuf [out]
+  Note: size shall be >=20(=8+12)+inplen
+ @param rpllen [in,out]
+  Note: [8..20]+inplen
+ */
 
-    this -> generate_reply_head(recvbuf, recvlen, replybuf, headlen);
+void rmap_channel::generate_read_reply(const uint8_t inpbuf[], size_t inplen, const uint8_t rcvbuf[], size_t rcvlen, uint8_t rplbuf[], size_t &rpllen) const {
+    size_t hedlen = rpllen;
 
-    uint8_t *const cargo = replybuf + headlen - 8;
+    this -> generate_reply_head(rcvbuf, rcvlen, rplbuf, hedlen);
+
+    uint8_t *const cargo = rplbuf + hedlen - 8;
     cargo[ 7] = 0x00;
-    cargo[ 8] = (inputlen >> 16) & 0xFF;
-    cargo[ 9] = (inputlen >>  8) & 0xFF;
-    cargo[10] = (inputlen >>  0) & 0xFF;
-    cargo[11] = rmap_calculate_crc(cargo, 11);
+    cargo[ 8] = (inplen >> 16) & 0xFF;
+    cargo[ 9] = (inplen >>  8) & 0xFF;
+    cargo[10] = (inplen >>  0) & 0xFF;
+    cargo[11] = rmap_calculate_crc(cargo, 11); /* Header CRC */
 
     uint8_t *const data = cargo + 12;
-    memcpy(data, inputbuf, inputlen);
-    data[inputlen] = rmap_calculate_crc(data, inputlen); /* Data CRC */
+    memcpy(data, inpbuf, inplen);
+    data[inplen] = rmap_calculate_crc(data, inplen); /* Data CRC */
 
-    replylen = headlen + 4 + inputlen + 1 /* Data CRC */;
+    rpllen = hedlen + 4 + inplen + 1 /* Data CRC */;
 }
 
-void rmap_channel::validate_command(const uint8_t recvbuf[], size_t recvlen, const uint8_t *(outbuf_p[]), size_t &outlen) const {
-    const uint8_t *const cargo = recvbuf;
+/**
+ @param rcvbuf [in]
+ @param rcvlen [in]
+ @param outbuf [out]
+ @param outlen [in,out]
+ */
+
+void rmap_channel::validate_command(const uint8_t rcvbuf[], size_t rcvlen, const uint8_t *&outbuf, size_t &outlen) const {
+    const uint8_t *const cargo = rcvbuf;
 
     if ( cargo[0] != this->destination_logical_address ){
         pcapnc_logerr("Destination Logical Address is not 0x%02x but 0x%02x.\n", 
@@ -366,28 +425,35 @@ void rmap_channel::validate_command(const uint8_t recvbuf[], size_t recvlen, con
     const uint16_t transaction_id =        (cargo[ 5+n]  <<  8) 
         +                                  (cargo[ 6+n]  <<  0);
 #endif
-    const size_t   data_length = (((size_t) cargo[12+n]) << 16)
-        +                        (((size_t) cargo[13+n]) <<  8) 
-        +                        (((size_t) cargo[14+n]) <<  0);
+    const size_t   outlen1 = (((size_t) cargo[12+n]) << 16)
+        +                    (((size_t) cargo[13+n]) <<  8) 
+        +                    (((size_t) cargo[14+n]) <<  0);
 
-    if ( 16+n+data_length+1 != recvlen ){
+    if ( 16+n+outlen1+1 != rcvlen ){
         pcapnc_logerr("Data Length (%zu) is not consistent received packet size (%zu).\n", 
-            data_length, recvlen);
+            outlen1, rcvlen);
         return;       
     }
 
     const uint8_t *const data = cargo + 16 + n;
-    const uint8_t data_crc = rmap_calculate_crc(data, data_length);
-    if ( data[data_length] != data_crc ){
+    const uint8_t data_crc = rmap_calculate_crc(data, outlen1);
+    if ( data[outlen1] != data_crc ){
         pcapnc_logerr("Data CRC Error.\n");
         return;       
     }
 
-    *outbuf_p  = data;
-    outlen = data_length;
+    outbuf = data;
+    outlen = outlen1;
 }
 
-void rmap_channel::validate_reply(const uint8_t recvbuf[], size_t recvlen, const uint8_t *(outbuf_p[]), size_t &outlen) const {
+/**
+ @param rcvbuf [in]
+ @param rcvlen [in]
+ @param outbuf [out]
+ @param outlen [in,out]
+ */
+
+void rmap_channel::validate_reply(const uint8_t rcvbuf[], size_t rcvlen, const uint8_t *&outbuf, size_t &outlen) const {
 
     // Wrire Reply (e.g. 0x28)
     // Instruction field = RMAP Reply
@@ -399,11 +465,11 @@ void rmap_channel::validate_reply(const uint8_t recvbuf[], size_t recvlen, const
     //  ?b: no increment (?)
     // 00b: source path address length
 
-    const uint8_t *const cargo = recvbuf;
+    const uint8_t *const cargo = rcvbuf;
 
-    if ( this->is_write_channel() && recvlen != 8 ){
+    if ( this->is_write_channel() && rcvlen != 8 ){
         pcapnc_logerr("Length of a Write Reply is not 8 but 0x%zu.\n", 
-            recvlen);
+            rcvlen);
         return;       
     }
     if ( cargo[0] != this->source_logical_address ){
@@ -449,22 +515,22 @@ void rmap_channel::validate_reply(const uint8_t recvbuf[], size_t recvlen, const
         }
     } else {
         const uint8_t header_crc = rmap_calculate_crc(cargo, 11);
-        const size_t data_length = (((size_t) cargo[ 8]) << 16)
-                                 + (((size_t) cargo[ 9]) <<  8)
-                                 + (((size_t) cargo[10]) <<  0);
+        const size_t outlen1 = (((size_t) cargo[ 8]) << 16)
+                             + (((size_t) cargo[ 9]) <<  8)
+                             + (((size_t) cargo[10]) <<  0);
         if ( cargo[11] != header_crc ) {
             pcapnc_logerr("Header CRC Error.\n");
             return;       
         }
 
         const uint8_t *const data = cargo + 12;
-        const uint8_t data_crc = rmap_calculate_crc(data, data_length); /* Data CRC */
-        if ( data[data_length] != data_crc ) {
+        const uint8_t data_crc = rmap_calculate_crc(data, outlen1); /* Data CRC */
+        if ( data[outlen1] != data_crc ) {
             pcapnc_logerr("Data CRC Error.\n");
         }
 
-        *outbuf_p  = data;
-        outlen = data_length;
+        outbuf = data;
+        outlen = outlen1;
     }
     return;
 }

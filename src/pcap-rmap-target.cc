@@ -78,8 +78,8 @@ int main(int argc, char *argv[])
 
   ////
     
-  static uint8_t inbuf  [PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
-  static uint8_t outbuf [PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
+  static uint8_t input_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
+  static uint8_t outpt_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
 
   static uint8_t output_pcap_header[PCAP_HEADER_SIZE] = {
     0xA1, 0xB2, 0x3C, 0x4D, // Magic Number Nano Sec
@@ -120,51 +120,51 @@ int main(int argc, char *argv[])
   }
 
   while(1){
-    ret = ip.read_packet_header(inbuf, sizeof(inbuf), PROGNAME, "input"); if ( ret > 0 ) return ret; if ( ret < 0 ) return 0;
-    ret = ip.read_packet_data(inbuf, PROGNAME, "input"); if ( ret > 0 ) return ret;
+    ret = ip.read_packet_header(input_buf, sizeof(input_buf), PROGNAME, "input"); if ( ret > 0 ) return ret; if ( ret < 0 ) return 0;
+    ret = ip.read_packet_data(input_buf, PROGNAME, "input"); if ( ret > 0 ) return ret;
 
     if ( !use_rmap_channel ) {
-      ret = pcapnc_fwrite(inbuf,  1, PACKET_HEADER_SIZE+ip.caplen, stdout);
+      ret = pcapnc_fwrite(input_buf,  1, PACKET_HEADER_SIZE+ip.caplen, stdout);
     } else {
 
       // simulate network
-      const size_t num_path_address = rmap_num_path_address(inbuf + PACKET_HEADER_SIZE, ip.caplen);
-      const uint8_t *recv_packet = inbuf + PACKET_HEADER_SIZE + num_path_address; 
-      size_t recvlen = ((size_t) ip.caplen) - num_path_address;
+      const size_t num_path_address = rmap_num_path_address(input_buf + PACKET_HEADER_SIZE, ip.caplen);
+      const uint8_t *rcvbuf = input_buf + PACKET_HEADER_SIZE + num_path_address; 
+      size_t rcvlen = ((size_t) ip.caplen) - num_path_address;
       size_t outlen;
 
       // generate output
       if ( rmapc.has_responces() ) {
-        uint8_t  replybuf[20]; outlen = 20;
+        uint8_t  rplbuf[20]; outlen = 20;
 
         if ( !use_rmaprd_rpl ) {
           // generate RMAP Write Reply
-          rmapc.generate_write_reply(recv_packet, recvlen, replybuf, outlen);
+          rmapc.generate_write_reply(rcvbuf, rcvlen, rplbuf, outlen);
         } else {
           // generate RMAP READ Reply
-          uint8_t sendbuf[999];
+          uint8_t inpu2_buf[999];
           
-          ret = lp.read_packet_header(sendbuf, sizeof(sendbuf), PROGNAME, "input"); if ( ret > 0 ) return ret; if ( ret < 0 ) return 0;
-          ret = lp.read_packet_data(sendbuf, PROGNAME, "input"); if ( ret > 0 ) return ret;
-          uint8_t *send_packet  = sendbuf  + PACKET_HEADER_SIZE;
-          const size_t sendsize = lp.caplen;
+          ret = lp.read_packet_header(inpu2_buf, sizeof(inpu2_buf), PROGNAME, "input"); if ( ret > 0 ) return ret; if ( ret < 0 ) return 0;
+          ret = lp.read_packet_data(inpu2_buf, PROGNAME, "input"); if ( ret > 0 ) return ret;
+          uint8_t *inpbuf  = inpu2_buf  + PACKET_HEADER_SIZE;
+          const size_t inplen = lp.caplen;
 
-          rmapc.generate_read_reply(send_packet, sendsize, recv_packet, recvlen, replybuf, outlen);
+          rmapc.generate_read_reply(inpbuf, inplen, rcvbuf, rcvlen, rplbuf, outlen);
         }
-        memcpy(outbuf+PACKET_HEADER_SIZE, replybuf, outlen);
+        memcpy(outpt_buf+PACKET_HEADER_SIZE, rplbuf, outlen);
       } else {
-        const uint8_t *out_packet; 
+        const uint8_t *outbuf; 
 
-        rmapc.validate_command(recv_packet, recvlen, &out_packet, outlen); // extract Service Data Unit (e.g. Space Packet)
-        memcpy(outbuf+PACKET_HEADER_SIZE, out_packet, outlen);
+        rmapc.validate_command(rcvbuf, rcvlen, outbuf, outlen); // extract Service Data Unit (e.g. Space Packet)
+        memcpy(outpt_buf+PACKET_HEADER_SIZE, outbuf, outlen);
       } 
 
-      pcapnc_network_encode_uint32(outbuf+ 0, ip.coarse_time);
-      pcapnc_network_encode_uint32(outbuf+ 4, ip.nanosec);
-      pcapnc_network_encode_uint32(outbuf+ 8, outlen);
-      pcapnc_network_encode_uint32(outbuf+12, outlen);
+      pcapnc_network_encode_uint32(outpt_buf+ 0, ip.coarse_time);
+      pcapnc_network_encode_uint32(outpt_buf+ 4, ip.nanosec);
+      pcapnc_network_encode_uint32(outpt_buf+ 8, outlen);
+      pcapnc_network_encode_uint32(outpt_buf+12, outlen);
 
-      ret = pcapnc_fwrite(outbuf, 1, PACKET_HEADER_SIZE+outlen, stdout);
+      ret = pcapnc_fwrite(outpt_buf, 1, PACKET_HEADER_SIZE+outlen, stdout);
     }
   }
   

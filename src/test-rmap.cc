@@ -35,57 +35,57 @@ static void test_write_channel(){
 
     //// Generate and Transmit RMAP Write Command
 
-    uint8_t  inbuf [10] = {0x12, 0x34, 0x56, 0x78, 0x9a,  0xFE, 0xDC, 0xBA, 0x98, 0x76};
-    uint32_t insize     = sizeof(inbuf);
-    uint8_t  sendbuf[999];
-    size_t   sendsize   = sizeof(sendbuf);
+    const uint8_t  inpbuf [10] = {0x12, 0x34, 0x56, 0x78, 0x9a,  0xFE, 0xDC, 0xBA, 0x98, 0x76};
+    uint32_t inplen = sizeof(inpbuf);
+    uint8_t  cmdbuf[999];
+    size_t   cmdlen = sizeof(cmdbuf);
 
-    rmapw.generate_write_command(inbuf, insize, sendbuf, sendsize);
+    rmapw.generate_write_command(inpbuf, inplen, cmdbuf, cmdlen);
 
     fprintf(stderr, "Transmitted RMAP Write Command:\n");
-    output_buffer(sendbuf, sendsize, rmapw.num_dpa_padding);
+    output_buffer(cmdbuf, cmdlen, rmapw.num_dpa_padding);
 
     //// Receive RMAP Write Command
 
-    const size_t num_recv_path_address = rmap_num_path_address(sendbuf, sendsize);
-    uint8_t *recvbuf  = sendbuf  + num_recv_path_address;
-    size_t   recvsize = sendsize - num_recv_path_address;
+    const size_t num_recv_path_address = rmap_num_path_address(cmdbuf, cmdlen);
+    uint8_t *rcvbuf = cmdbuf + num_recv_path_address;
+    size_t   rcvlen = cmdlen - num_recv_path_address;
 
     fprintf(stderr, "Received RMAP Write Command:\n");
-    output_buffer(recvbuf, recvsize, 0);
+    output_buffer(rcvbuf, rcvlen, 0);
 
     //// Extract Service Data Unit from RMAP Write Command
 
     const uint8_t *outbuf;
-    size_t         outsize = 0;
+    size_t         outlen = 0;
 
-    rmapw.validate_command(recvbuf, recvsize, &outbuf, outsize);
+    rmapw.validate_command(rcvbuf, rcvlen, outbuf, outlen);
 
-    fprintf(stderr, "Received Data (%zu):\n", outsize);
-    output_buffer(outbuf, outsize, 0);
+    fprintf(stderr, "Received Data (%zu):\n", outlen);
+    output_buffer(outbuf, outlen, 0);
 
     //// Generate and Transmit RMAP Write Reply
 
-    uint8_t  replybuf[20];
-    size_t   replysize   = sizeof(replybuf);
+    uint8_t  rplbuf[20];
+    size_t   rpllen = sizeof(rplbuf);
 
-    rmapw.generate_write_reply(recvbuf, recvsize, replybuf, replysize);
+    rmapw.generate_write_reply(rcvbuf, rcvlen, rplbuf, rpllen);
 
     fprintf(stderr, "Transmitted RMAP Reply:\n");
-    output_buffer(replybuf, replysize, 0);
+    output_buffer(rplbuf, rpllen, 0);
 
     //// Receive RMAP Write Reply
 
-    const size_t num_retn_path_address = rmap_num_path_address(replybuf, replysize);
-    uint8_t *retnbuf  = replybuf  + num_retn_path_address;
-    size_t   retnsize = replysize - num_retn_path_address;
+    const size_t num_retn_path_address = rmap_num_path_address(rplbuf, rpllen);
+    uint8_t *rtnbuf = rplbuf + num_retn_path_address;
+    size_t   rtnlen = rpllen - num_retn_path_address;
 
     fprintf(stderr, "Received RMAP Write Reply:\n");
-    output_buffer(retnbuf, retnsize, 0);
+    output_buffer(rtnbuf, rtnlen, 0);
 
-    const uint8_t *dmybuf;
-    size_t   dmysize;
-    rmapw.validate_reply(retnbuf, retnsize, &dmybuf, dmysize);
+    const uint8_t *dmybuf = NULL;
+    size_t dmylen=0;
+    rmapw.validate_reply(rtnbuf, rtnlen, dmybuf, dmylen);
 }
 
 void test_read_channel(){
@@ -96,44 +96,45 @@ void test_read_channel(){
 
     //// Generate and Transmit RMAP Read Command
 
-    uint8_t trnsbuf[999];
-    size_t  trnssize = rmapr.generate_read_command(trnsbuf);
+    uint8_t cmdbuf[999];
+    size_t  cmdlen = sizeof(cmdbuf);
+    rmapr.generate_read_command(cmdbuf, cmdlen);
     fprintf(stderr, "Transmitted RMAP Read Command:\n");
-    output_buffer(trnsbuf, trnssize, rmapr.num_dpa_padding);
+    output_buffer(cmdbuf, cmdlen, rmapr.num_dpa_padding);
 
     //// Receive RMAP Read Command
 
-    const size_t num_recv_path_address = rmap_num_path_address(trnsbuf, trnssize);
-    uint8_t *recvbuf  = trnsbuf  + num_recv_path_address;
-    size_t   recvsize = trnssize - num_recv_path_address;
+    const size_t num_recv_path_address = rmap_num_path_address(cmdbuf, cmdlen);
+    uint8_t *rcvbuf = cmdbuf  + num_recv_path_address;
+    size_t   rcvlen = cmdlen - num_recv_path_address;
 
     fprintf(stderr, "Received RMAP Read Command:\n");
-    output_buffer(recvbuf, recvsize, 0);
+    output_buffer(rcvbuf, rcvlen, 0);
 
     //// Generate and Transmit RMAP Read Reply
 
-    uint8_t  inbuf [10] = {0x12, 0x34, 0x56, 0x78, 0x9a,  0xFE, 0xDC, 0xBA, 0x98, 0x76};
-    uint32_t insize     = sizeof(inbuf);
-    uint8_t  replybuf[999];
-    size_t   replysize   = sizeof(replybuf);
+    const uint8_t  inpbuf [10] = {0x12, 0x34, 0x56, 0x78, 0x9a,  0xFE, 0xDC, 0xBA, 0x98, 0x76};
+    const uint32_t inplen = sizeof(inpbuf);
+    uint8_t  rplbuf[999];
+    size_t   rpllen = sizeof(rplbuf);
 
-    rmapr.generate_read_reply(inbuf, insize, recvbuf, recvsize, replybuf, replysize);
+    rmapr.generate_read_reply(inpbuf, inplen, rcvbuf, rcvlen, rplbuf, rpllen);
 
     fprintf(stderr, "Transmitted RMAP Read Reply:\n");
-    output_buffer(replybuf, replysize, 0);
+    output_buffer(rplbuf, rpllen, 0);
 
     //// Receive RMAP Write Reply
 
-    const size_t num_retn_path_address = rmap_num_path_address(replybuf, replysize);
-    uint8_t *retnbuf  = replybuf  + num_retn_path_address;
-    size_t   retnsize = replysize - num_retn_path_address;
+    const size_t num_retn_path_address = rmap_num_path_address(rplbuf, rpllen);
+    uint8_t *rtnbuf = rplbuf + num_retn_path_address;
+    size_t   rtnlen = rpllen - num_retn_path_address;
 
     fprintf(stderr, "Received RMAP Read Reply:\n");
-    output_buffer(retnbuf, retnsize, 0);
+    output_buffer(rtnbuf, rtnlen, 0);
 
-    const uint8_t *outbuf;
-    size_t   outsize;
-    rmapr.validate_reply(retnbuf, retnsize, &outbuf, outsize);
+    const uint8_t *outbuf = NULL;
+    size_t outlen = 0;
+    rmapr.validate_reply(rtnbuf, rtnlen, outbuf, outlen);
 }
 
 int main(int argc, char *argv[])
