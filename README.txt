@@ -11,8 +11,8 @@ The combination of the argements for pcap-replay(*1), pcap-store and those for n
 
 pcap-replay
 Arguments:
---after wait_sec(double) :
-  time to be wait for sending the first Packet Record.
+--before wait_sec(double) :
+  time to wait before sending the first Packet Record.
 --config filename:
   name of a configuration file
 --interval interval_sec (double):
@@ -23,7 +23,9 @@ Arguments:
   do not update the values in the timestamp fields of a Packet Record.
   Unless specified, the values in the timestamp fields are updated into the current packet transmission time.
 --receive-reply input(path):
-  receive reply from the input and check the reply
+  receive reply in the PCAP format from the input and check the reply
+--store-data output(path):
+  store user data collected by RMAP Read Transactions in the PCAP format
 
 pcap-store
 Arguments:

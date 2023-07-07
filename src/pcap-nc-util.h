@@ -28,11 +28,16 @@ class pcap_file {
   int read_packet_header(uint8_t record_buffer[], size_t buffer_size, const char *prog_name, const char *source_name);
   int read_packet_data  (uint8_t record_buffer[], const char *prog_name, const char *source_name);
 
+  int write_head(FILE *output, uint8_t linktype);
+  int write_head(const char *filename, uint8_t linktype);
+
   size_t read(void *buf, size_t size, size_t nmemb);
+  size_t write(const void *buf, size_t size, size_t nmemb);
 
   uint16_t extract_uint16(void *ptr);
   uint32_t extract_uint32(void *ptr);
 
   private:
   FILE *rp;
+  FILE *wp;
 };

@@ -73,6 +73,18 @@ do
 	    fi
 	    args_replay="$args_replay --interval=$OPT"
 	    ;;
+	--store-data |                 --store-data=*)
+	    if [[ "$1" =~             ^--store-data= ]]; then
+		OPT=$(echo $1 | sed -e 's/^--store-data=//')
+	    elif [[ -z "$2" ]] || [[ "$2" =~ ^-+ ]]; then
+		echo              "'option --store-data' requires an argument." 1>&2
+		exit 1
+	    else
+		OPT="$2"
+		shift
+	    fi
+	    args_replay="$args_replay --store-data=$OPT"
+	    ;;
 	--original-time)
 	    args_replay="$args_replay --original-time"
 	    ;;

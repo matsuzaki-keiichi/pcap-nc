@@ -44,8 +44,9 @@
 
 #define OPTSTRING ""
 
-static int use_rmap_channel  = 0;
-static int use_rmap_reply = 0;
+static int use_rmap_channel = 0;
+static int use_rmap_reply   = 0;
+static int store_rmap_read  = 0;
 
 static struct option long_options[] = {
   {"after",         required_argument, NULL, 'a'},
@@ -55,6 +56,7 @@ static struct option long_options[] = {
   {"interval",      required_argument, NULL, 'i'},
   {"original-time",       no_argument, NULL, 'o'},
   {"receive-reply", required_argument, NULL, 'r'},
+  {"store-data",    required_argument, NULL, 's'},
   { NULL,                           0, NULL,  0 }
 };
 
@@ -64,6 +66,7 @@ static double      param_interval_sec  = -1.0;
 static std::string param_config        =  ""; 
 static std::string param_channel       =  ""; 
 static std::string param_replyfile     =  ""; 
+static std::string param_storefile     =  ""; 
 static int         param_original_time =  0;
 
 FILE *rp = NULL;
@@ -93,6 +96,7 @@ int main(int argc, char *argv[])
     case 'i': param_interval_sec     = atof(optarg); if (param_interval_sec < 0.0) param_interval_sec = 0.0; break;
     case 'o': param_original_time    = 1; break;
     case 'r': param_replyfile = std::string(optarg); break;
+    case 's': param_storefile = std::string(optarg); break;
     default: option_error=1; break;
     }
   }
@@ -109,6 +113,12 @@ int main(int argc, char *argv[])
   if ( param_replyfile != ""  ){
     const int r_ret = lp.read_head(param_replyfile.c_str()); if ( r_ret ) return r_ret;
     use_rmap_reply = 1;
+  }
+  pcap_file sp;
+  if ( param_storefile != ""  ){
+    const uint8_t linktype = 0x94; // SpacePacket
+    const int r_ret = sp.write_head(param_storefile.c_str(), linktype); if ( r_ret ) return r_ret;
+    store_rmap_read = 1;
   }
 
   debug_fprintf(stderr, "param_before_wtime=%f\n", param_before_wtime);
@@ -223,11 +233,19 @@ int main(int argc, char *argv[])
       // check returned packet is expected
 
       const uint8_t *outbuf;
-      size_t outsize;
-      rmapc.validate_reply(retnbuf, retnlen, outbuf, outsize);
+      size_t outlen;
+      rmapc.validate_reply(retnbuf, retnlen, outbuf, outlen);
 
-      if ( !rmapc.is_write_channel() ){
+      if ( !rmapc.is_write_channel() && store_rmap_read ){
         // Read Channel
+        uint8_t outpt_buf[999];
+
+        memcpy(outpt_buf, input_buf, PACKET_HEADER_SIZE - 8);
+        pcapnc_network_encode_uint32(outpt_buf+ 8, outlen);
+        pcapnc_network_encode_uint32(outpt_buf+12, outlen);
+        memcpy(outpt_buf+PACKET_HEADER_SIZE, outbuf, outlen);
+
+        ret = sp.write(outpt_buf, 1, PACKET_HEADER_SIZE+outlen);        
       }
     }
   }

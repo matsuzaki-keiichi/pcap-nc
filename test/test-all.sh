@@ -15,12 +15,20 @@ rm -fr outdir
 mkdir -p outdir
 
 
-# case 23.
+# case 24.
 #               Initiator       network       Target
 # xxx/PCAP => RMAPRD/PCAP => {RMAPRD/PCAP} => RMAPRD/PCAP
 #                                              + SPP/PCAP
 #             RMAPRR/PCAP <= {RMAPRR/PCAP} <= RMAPRR/PCAP
 
+do_test ./test-client2server-24-rmapr-rpl3.sh expected/test-spp-out.pcap outdir/test-spp-out.pcap
+do_test ./test-server2client-24-rmapr-rpl3.sh expected/test-spp-out.pcap outdir/test-spp-out.pcap
+
+# case 23.
+#               Initiator       network       Target
+# xxx/PCAP => RMAPRD/PCAP => {RMAPRD/PCAP} => RMAPRD/PCAP
+#                                              + SPP/PCAP
+#             RMAPRR/PCAP <= {RMAPRR/PCAP} <= RMAPRR/PCAP
 
 do_test ./test-client2server-23-rmapr-rpl2.sh expected/test-rmapr-rpl-out.pcap outdir/test-rmapr-rpl-out.pcap
 do_test ./test-server2client-23-rmapr-rpl2.sh expected/test-rmapr-rpl-out.pcap outdir/test-rmapr-rpl-out.pcap

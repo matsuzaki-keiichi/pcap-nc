@@ -46,6 +46,23 @@ size_t pcap_file::read(void *buf, size_t size, size_t nmemb){
   return nmemb - remaining_nmemb;
 }
 
+size_t pcap_file::write(const void *buf, size_t size, size_t nmemb){
+  size_t remaining_nmemb = nmemb;
+  ssize_t ret;
+  while ( remaining_nmemb > 0 ) {
+    // debug_fprintf(stderr, "remaining_nmemb=%zu\n", remaining_nmemb);	    
+    ret = fwrite(buf, size, remaining_nmemb, this->wp);
+    if ( ret > 0 ) {
+      remaining_nmemb -= ret;
+    } else {
+      if ( feof(this->wp) ) break;
+      if ( ferror(this->wp) ) break;
+      sleep(WRITE_RETRY);
+    }
+  }
+  return nmemb - remaining_nmemb;
+}
+
 size_t pcapnc_fwrite(const void *buf, size_t size, size_t nmemb, FILE *fp){
   size_t remaining_nmemb = nmemb;
   ssize_t ret;
@@ -133,6 +150,28 @@ int pcap_file::read_head(FILE *input){
   return 0;
 }
 
+static uint8_t output_pcap_header[PCAP_HEADER_SIZE] = {
+  0xA1, 0xB2, 0x3C, 0x4D, // Magic Number Nano Sec
+  0x00, 0x02, 0x00, 0x04, // Major Version, Minor Version
+  0x00, 0x00, 0x00, 0x09, // Time Zone
+  0x00, 0x00, 0x00, 0x00, // Sigfig
+  0x00, 0x01, 0x00, 0x12, // Scap Len
+  0x00, 0x00, 0x00, 0x95  // Link Type (0x95=149: DLT_USER2 = SpaceWire)
+};
+
+int pcap_file::write_head(FILE *output, uint8_t linktype){
+  this->wp = output;
+
+  output_pcap_header[23] = linktype;
+ 
+  ssize_t ret = this->write(output_pcap_header, 1, PCAP_HEADER_SIZE);
+  if ( ret < PCAP_HEADER_SIZE ) {
+    pcapnc_logerr("Output error .\n");
+    return ERROR_2;
+  }
+  return 0;
+}
+
 int pcap_file::read_head(const char *filename){
   FILE *rp = fopen(filename, "r");
   if ( rp == NULL ) {
@@ -144,6 +183,19 @@ int pcap_file::read_head(const char *filename){
   if ( ret != 0 ) pcapnc_logerr("Failed to Unset input buffer.\n");
 
   return pcap_file::read_head(rp);    
+}
+
+int pcap_file::write_head(const char *filename, uint8_t linktype){
+  FILE *wp = fopen(filename, "w");
+  if ( wp == NULL ) {
+    pcapnc_logerr("Output file (%s) open failed.\n", filename);
+    return ERROR_5;
+  }
+
+  const int ret = setvbuf(wp,  NULL, _IONBF, 0);
+  if ( ret != 0 ) pcapnc_logerr("Failed to Unset output buffer.\n");
+
+  return pcap_file::write_head(wp, linktype);    
 }
 
 #define ERROR_5 5

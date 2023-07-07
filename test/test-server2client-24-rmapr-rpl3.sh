@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
-# case 23.
+# case 24.
 #                      server         network         client
 # xxx/PCAP =>     RMAPRD/PCAP =>     {RMAPRD/PCAP} => RMAPRD/PCAP
 #                                                   + SPP/PCAP
-#             SPP/RMAPRR/PCAP <= {SPP/RMAPRR/PCAP} <= SPP/RMAPRR/PCAP
+# SPP/PCAP <= SPP/RMAPRR/PCAP <= {SPP/RMAPRR/PCAP} <= SPP/RMAPRR/PCAP
 
 mkdir -p outdir
 
@@ -16,7 +16,7 @@ OPTSERV='-l 14800'
 OPTCLNT='127.0.0.1 14800 --no-stdin'
 
 echo starting server
-$PCAPNC $OPTSERV $OPTSEND $CHAN < test-spp.pcap --after=1.0 --link-type=spw >outdir/test-rmapr-rpl-out.pcap &
+$PCAPNC $OPTSERV $OPTSEND $CHAN < test-spp.pcap --after=1.0 --check-reply --store-data=outdir/test-spp-out.pcap &
 
 sleep 1
 echo starting client

@@ -14,6 +14,7 @@ OPTCLNT='127.0.0.1 14800 --no-stdin'
 
 echo starting server
 $PCAPNC $OPTSERV $OPTSEND $CHAN < test-spp.pcap >/dev/null &
+
 sleep 1
 echo starting client
 $PCAPNC $OPTCLNT --link-type=spp | ../bin/pcap-rmap-target $CHAN | ../bin/pcap-store --link-type=spp >outdir/test-spp-out.pcap

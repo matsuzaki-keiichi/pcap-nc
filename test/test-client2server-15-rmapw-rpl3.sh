@@ -8,18 +8,17 @@
 mkdir -p outdir
 
 CHAN='--config=sample.json --channel=channel2' # RMAP Write Command with Acknowledge
-FIFO=/tmp/pcap-fifo
-mkfifo $FIFO
 
 PCAPNC='stdbuf -i 0 -o 0 ../bin/pcap-nc'
 OPTSEND='--original-time --interval=0.001'
 OPTSERV='--no-stdin -l 14800'
 OPTCLNT='127.0.0.1 14800 --sleep=1'
 
-echo "starting client (1sec delay)"
-$PCAPNC $OPTCLNT $OPTSEND $CHAN --check-reply --link-type=spw < test-spp.pcap >/dev/null &
+echo starting client
+$PCAPNC $OPTCLNT $OPTSEND $CHAN < test-spp.pcap --check-reply &
 
 echo starting server
+FIFO=/tmp/pcap-fifo
+mkfifo $FIFO
 $PCAPNC $OPTSERV --link-type=spw <$FIFO | ../bin/pcap-rmap-target $CHAN >$FIFO
-
 rm $FIFO
