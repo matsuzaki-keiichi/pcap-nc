@@ -13,14 +13,16 @@ class rmap_write_channel {
     int is_write_channel() const;
     int has_responces() const;
 
-    void   write_send           (const uint8_t inbuf[],   size_t data_length, uint8_t sendbuf[],        size_t *sendsize_p);
-    void   write_recv           (const uint8_t recvbuf[], size_t recvsize,    const uint8_t **outbuf_p, size_t *outsize_p ) const;
+    size_t generate_command     (                                             uint8_t trnsbuf[]);
+    void   send_write           (const uint8_t inbuf[],   size_t data_length, uint8_t trnsbuf[],        size_t *trnssize_p);
+
+    void   validate_command     (const uint8_t recvbuf[], size_t recvsize,    const uint8_t **outbuf_p, size_t *outsize_p ) const;
     void   generate_reply_head  (const uint8_t recvbuf[], size_t recvsize,    uint8_t replybuf[],       size_t *headlen   ) const;
     void   generate_write_reply (const uint8_t recvbuf[], size_t recvsize,    uint8_t replybuf[],       size_t *replylen  ) const;
-    void   generate_read_reply  (const uint8_t inbuf[],   size_t data_length, 
+    void   send_read            (const uint8_t inbuf[],   size_t data_length, 
                                  const uint8_t recvbuf[], size_t recvsize,    uint8_t replybuf[],       size_t *replylen  ) const;
-    void   recv_reply           (const uint8_t recvbuf[], size_t recvsize,    const uint8_t **outbuf_p, size_t *outsize_p ) const;
-    size_t generate_command_head(                                             uint8_t trnsbuf[]);
+
+    void   validate_reply       (const uint8_t recvbuf[], size_t recvsize,    const uint8_t **outbuf_p, size_t *outsize_p ) const;
 
     uint8_t  d_path_address[RMAP_MAX_NUM_PATH_ADDRESS]; size_t num_dpa;
     uint8_t  s_path_address[RMAP_MAX_NUM_PATH_ADDRESS]; size_t num_spa;

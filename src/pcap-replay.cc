@@ -115,8 +115,8 @@ int main(int argc, char *argv[])
 
   ////
     
-  static uint8_t inbuf  [PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
-  static uint8_t outbuf [PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
+  static uint8_t inbuf   [PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
+  static uint8_t trnsbuf [PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
 
   ssize_t ret;
 
@@ -155,38 +155,38 @@ int main(int argc, char *argv[])
       if ( iret == 0 ) {
       	const uint32_t now_coarse_time =          (uint32_t)  tv.tv_sec;
       	const uint32_t now_nanosec     =   1000 * (uint32_t)  tv.tv_usec;	
-      	pcapnc_network_encode_uint32(outbuf+ 0, now_coarse_time);
-      	pcapnc_network_encode_uint32(outbuf+ 4, now_nanosec);
+      	pcapnc_network_encode_uint32(trnsbuf+ 0, now_coarse_time);
+      	pcapnc_network_encode_uint32(trnsbuf+ 4, now_nanosec);
       } else {
         // TODO implement error handling
       }
     } else {
-      pcapnc_network_encode_uint32(outbuf+ 0, ip.coarse_time);
-      pcapnc_network_encode_uint32(outbuf+ 4, ip.nanosec);
+      pcapnc_network_encode_uint32(trnsbuf+ 0, ip.coarse_time);
+      pcapnc_network_encode_uint32(trnsbuf+ 4, ip.nanosec);
     }
 
-    size_t outlen;
-    uint8_t *in_packet  = inbuf  + PACKET_HEADER_SIZE;
-    uint8_t *out_packet = outbuf + PACKET_HEADER_SIZE;
+    size_t trnslen;
+    uint8_t *in_packet   = inbuf   + PACKET_HEADER_SIZE;
+    uint8_t *trns_packet = trnsbuf + PACKET_HEADER_SIZE;
     if ( use_rmap_channel ) {
 
-      size_t outsize = PACKET_DATA_MAX_SIZE;
+      size_t trnssize = PACKET_DATA_MAX_SIZE;
       if ( rmapw.is_write_channel() ){
         const size_t insize  = ip.caplen;
-        rmapw.write_send(in_packet, insize, out_packet, &outsize);
+        rmapw.send_write(in_packet, insize, trns_packet, &trnssize);
 //fprintf(stderr,"write channel\n");        
       } else {
 //fprintf(stderr,"read channel\n");        
-        outsize = rmapw.generate_command_head(out_packet);
+        trnssize = rmapw.generate_command(trns_packet);
       }
-      outlen = outsize;
+      trnslen = trnssize;
     } else {
-      memcpy(out_packet, in_packet, ip.caplen);
-      outlen = ip.caplen;
+      memcpy(trns_packet, in_packet, ip.caplen);
+      trnslen = ip.caplen;
     }
 
-    pcapnc_network_encode_uint32(outbuf+ 8, outlen);
-    pcapnc_network_encode_uint32(outbuf+12, outlen);
+    pcapnc_network_encode_uint32(trnsbuf+ 8, trnslen);
+    pcapnc_network_encode_uint32(trnsbuf+12, trnslen);
 
     double curr_time = ip.coarse_time + ip.nanosec * 1e-9;
     if ( prev_time < 0 ) {
@@ -207,7 +207,7 @@ int main(int argc, char *argv[])
     prev_time = curr_time;
     debug_fprintf(stderr, "curr_time=%f\n", curr_time);
 
-    ret = pcapnc_fwrite(outbuf, 1, PACKET_HEADER_SIZE+outlen, stdout);
+    ret = pcapnc_fwrite(trnsbuf, 1, PACKET_HEADER_SIZE+trnslen, stdout);
 
     if ( use_rmap_reply ) {
 
@@ -228,7 +228,7 @@ int main(int argc, char *argv[])
       const uint8_t *outbuf;
       size_t outsize;
 
-      rmapw.recv_reply(retnbuf, retnlen, &outbuf, &outsize);
+      rmapw.validate_reply(retnbuf, retnlen, &outbuf, &outsize);
     }
   }
   

@@ -129,8 +129,8 @@ int main(int argc, char *argv[])
 
       // simulate network
       const size_t num_path_address = rmap_num_path_address(inbuf + PACKET_HEADER_SIZE, ip.caplen);
-      const uint8_t *in_packet = inbuf + PACKET_HEADER_SIZE + num_path_address; 
-      size_t inlen = ((size_t) ip.caplen) - num_path_address;
+      const uint8_t *recv_packet = inbuf + PACKET_HEADER_SIZE + num_path_address; 
+      size_t recvlen = ((size_t) ip.caplen) - num_path_address;
       size_t outlen;
 
       // generate output
@@ -139,7 +139,7 @@ int main(int argc, char *argv[])
 
         if ( !use_rmaprd_rpl ) {
           // generate RMAP Write Reply
-          rmapw.generate_write_reply(in_packet, inlen, replybuf, &outlen);
+          rmapw.generate_write_reply(recv_packet, recvlen, replybuf, &outlen);
         } else {
           // generate RMAP READ Reply
           uint8_t sendbuf[999];
@@ -149,13 +149,13 @@ int main(int argc, char *argv[])
           uint8_t *send_packet  = sendbuf  + PACKET_HEADER_SIZE;
           const size_t sendsize = lp.caplen;
 
-          rmapw.generate_read_reply(send_packet, sendsize, in_packet, inlen, replybuf, &outlen);
+          rmapw.send_read(send_packet, sendsize, recv_packet, recvlen, replybuf, &outlen);
         }
         memcpy(outbuf+PACKET_HEADER_SIZE, replybuf, outlen);
       } else {
         const uint8_t *out_packet; 
 
-        rmapw.write_recv(in_packet, inlen, &out_packet, &outlen); // extract Service Data Unit (e.g. Space Packet)
+        rmapw.validate_command(recv_packet, recvlen, &out_packet, &outlen); // extract Service Data Unit (e.g. Space Packet)
         memcpy(outbuf+PACKET_HEADER_SIZE, out_packet, outlen);
       } 
 

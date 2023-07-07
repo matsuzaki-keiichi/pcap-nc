@@ -177,7 +177,9 @@ int rmap_write_channel::has_responces() const {
 
 #define RMAP_PROTOCOL_ID 0x01
 
-size_t rmap_write_channel::generate_command_head(uint8_t trnsbuf[]) {
+size_t rmap_write_channel::generate_command(uint8_t trnsbuf[]) {
+    // This function generate a part of Command Header also for RMAP Write command
+
     const int m = this->num_dpa;
     const int n = this->num_spa + this->num_spa_padding;
 
@@ -225,29 +227,29 @@ size_t rmap_write_channel::generate_command_head(uint8_t trnsbuf[]) {
     return 16+m+n;
 }
 
-void rmap_write_channel::write_send(const uint8_t inbuf[], size_t data_length, uint8_t sendbuf[], size_t *sendsize_p) {
+void rmap_write_channel::send_write(const uint8_t inbuf[], size_t data_length, uint8_t trnsbuf[], size_t *trnssize_p) {
 
     // this method should be called only for RMAP Write Command 
     // i.e. this->instruction & 0x20 != 0
 
     this->data_length = data_length;
 
-    const size_t sendsize0 = this->generate_command_head(sendbuf);
-    const size_t sendsize1 = sendsize0 + data_length + 1 /* CRC length */;
+    const size_t trnssize0 = this->generate_command(trnsbuf);
+    const size_t trnssize1 = trnssize0 + data_length + 1 /* CRC length */;
 
-    if ( sendsize1 > *sendsize_p ) {
-        pcapnc_logerr("output size (%zu) exceeds the buffer size (%zu).\n", sendsize1, *sendsize_p);
+    if ( trnssize1 > *trnssize_p ) {
+        pcapnc_logerr("output size (%zu) exceeds the buffer size (%zu).\n", trnssize1, *trnssize_p);
         exit(1);        
     }
 
-    uint8_t *const data = sendbuf + sendsize0;
+    uint8_t *const data = trnsbuf + trnssize0;
     memcpy(data, inbuf, data_length);
     data[data_length] = rmap_calculate_crc(data, data_length); /* Data CRC */
 
-    *sendsize_p = sendsize1;    
+    *trnssize_p = trnssize1;    
 }
 
-void rmap_write_channel::write_recv(const uint8_t recvbuf[], size_t recvsize, const uint8_t **outbuf_p, size_t *outsize_p) const {
+void rmap_write_channel::validate_command(const uint8_t recvbuf[], size_t recvsize, const uint8_t **outbuf_p, size_t *outsize_p) const {
     const uint8_t *const cargo = recvbuf;
 
     if ( cargo[0] != this->destination_logical_address ){
@@ -362,7 +364,7 @@ void rmap_write_channel::generate_write_reply(const uint8_t recvbuf[], size_t re
     *replylen = headlen;
 }
 
-void rmap_write_channel::generate_read_reply(const uint8_t inbuf[], size_t data_length, const uint8_t recvbuf[], size_t recvsize, uint8_t replybuf[], size_t *replylen) const {
+void rmap_write_channel::send_read(const uint8_t inbuf[], size_t data_length, const uint8_t recvbuf[], size_t recvsize, uint8_t replybuf[], size_t *replylen) const {
     size_t headlen = *replylen;
 
     this -> generate_reply_head(recvbuf, recvsize, replybuf, &headlen);
@@ -381,7 +383,7 @@ void rmap_write_channel::generate_read_reply(const uint8_t inbuf[], size_t data_
     *replylen = headlen + 4 + data_length + 1 /* Data CRC */;
 }
 
-void rmap_write_channel::recv_reply(const uint8_t recvbuf[], size_t recvsize, const uint8_t **outbuf_p, size_t *outsize_p) const {
+void rmap_write_channel::validate_reply(const uint8_t recvbuf[], size_t recvsize, const uint8_t **outbuf_p, size_t *outsize_p) const {
 
     // Wrire Reply (e.g. 0x28)
     // Instruction field = RMAP Reply
