@@ -100,13 +100,13 @@ int main(int argc, char *argv[])
 
   ////
 
-  class rmap_write_channel rmapw;
+  class rmap_channel rmapc;
   if ( use_rmap_channel ) {
-    rmapw.read_json(param_config.c_str(), param_channel.c_str());
+    rmapc.read_json(param_config.c_str(), param_channel.c_str());
   }
 
   uint8_t linktype;
-  if ( use_rmap_channel && rmapw.has_responces() ) {
+  if ( use_rmap_channel && rmapc.has_responces() ) {
     linktype = 0x95; // SpaceWire
   } else {
     linktype = 0x94; // SpacePacket
@@ -134,12 +134,12 @@ int main(int argc, char *argv[])
       size_t outlen;
 
       // generate output
-      if ( rmapw.has_responces() ) {
+      if ( rmapc.has_responces() ) {
         uint8_t  replybuf[20]; outlen = 20;
 
         if ( !use_rmaprd_rpl ) {
           // generate RMAP Write Reply
-          rmapw.generate_write_reply(recv_packet, recvlen, replybuf, &outlen);
+          rmapc.generate_write_reply(recv_packet, recvlen, replybuf, &outlen);
         } else {
           // generate RMAP READ Reply
           uint8_t sendbuf[999];
@@ -149,13 +149,13 @@ int main(int argc, char *argv[])
           uint8_t *send_packet  = sendbuf  + PACKET_HEADER_SIZE;
           const size_t sendsize = lp.caplen;
 
-          rmapw.send_read(send_packet, sendsize, recv_packet, recvlen, replybuf, &outlen);
+          rmapc.generate_read_reply(send_packet, sendsize, recv_packet, recvlen, replybuf, &outlen);
         }
         memcpy(outbuf+PACKET_HEADER_SIZE, replybuf, outlen);
       } else {
         const uint8_t *out_packet; 
 
-        rmapw.validate_command(recv_packet, recvlen, &out_packet, &outlen); // extract Service Data Unit (e.g. Space Packet)
+        rmapc.validate_command(recv_packet, recvlen, &out_packet, &outlen); // extract Service Data Unit (e.g. Space Packet)
         memcpy(outbuf+PACKET_HEADER_SIZE, out_packet, outlen);
       } 
 

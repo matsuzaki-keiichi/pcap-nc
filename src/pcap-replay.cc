@@ -130,10 +130,10 @@ int main(int argc, char *argv[])
 
   double prev_time = -1;
   
-  class rmap_write_channel rmapw;
+  class rmap_channel rmapc;
 
   if ( use_rmap_channel ) {
-    rmapw.read_json(param_config.c_str(), param_channel.c_str());
+    rmapc.read_json(param_config.c_str(), param_channel.c_str());
   }
 
 //// int i=0;
@@ -171,13 +171,13 @@ int main(int argc, char *argv[])
     if ( use_rmap_channel ) {
 
       size_t trnssize = PACKET_DATA_MAX_SIZE;
-      if ( rmapw.is_write_channel() ){
+      if ( rmapc.is_write_channel() ){
         const size_t insize  = ip.caplen;
-        rmapw.send_write(in_packet, insize, trns_packet, &trnssize);
+        rmapc.generate_write_command(in_packet, insize, trns_packet, &trnssize);
 //fprintf(stderr,"write channel\n");        
       } else {
 //fprintf(stderr,"read channel\n");        
-        trnssize = rmapw.generate_command(trns_packet);
+        trnssize = rmapc.generate_read_command(trns_packet);
       }
       trnslen = trnssize;
     } else {
@@ -228,7 +228,7 @@ int main(int argc, char *argv[])
       const uint8_t *outbuf;
       size_t outsize;
 
-      rmapw.validate_reply(retnbuf, retnlen, &outbuf, &outsize);
+      rmapc.validate_reply(retnbuf, retnlen, &outbuf, &outsize);
     }
   }
   

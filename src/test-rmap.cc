@@ -17,7 +17,7 @@ static void output_buffer(const uint8_t buffer[], size_t length, size_t leading_
 
 static void test_write_channel(){
 
-    class rmap_write_channel rmapw;
+    class rmap_channel rmapw;
 
     rmapw.read_json("../test/sample.json", "channel2");
 
@@ -40,7 +40,7 @@ static void test_write_channel(){
     uint8_t  sendbuf[999];
     size_t   sendsize   = sizeof(sendbuf);
 
-    rmapw.send_write(inbuf, insize, sendbuf, &sendsize);
+    rmapw.generate_write_command(inbuf, insize, sendbuf, &sendsize);
 
     fprintf(stderr, "Transmitted RMAP Write Command:\n");
     output_buffer(sendbuf, sendsize, rmapw.num_dpa_padding);
@@ -90,16 +90,16 @@ static void test_write_channel(){
 
 void test_read_channel(){
 
-    class rmap_write_channel rmapw;
+    class rmap_channel rmapr;
 
-    rmapw.read_json("../test/sample.json", "channel3");
+    rmapr.read_json("../test/sample.json", "channel3");
 
     //// Generate and Transmit RMAP Read Command
 
     uint8_t trnsbuf[999];
-    size_t  trnssize = rmapw.generate_command(trnsbuf);
+    size_t  trnssize = rmapr.generate_read_command(trnsbuf);
     fprintf(stderr, "Transmitted RMAP Read Command:\n");
-    output_buffer(trnsbuf, trnssize, rmapw.num_dpa_padding);
+    output_buffer(trnsbuf, trnssize, rmapr.num_dpa_padding);
 
     //// Receive RMAP Read Command
 
@@ -117,7 +117,7 @@ void test_read_channel(){
     uint8_t  replybuf[999];
     size_t   replysize   = sizeof(replybuf);
 
-    rmapw.send_read(inbuf, insize, recvbuf, recvsize, replybuf, &replysize);
+    rmapr.generate_read_reply(inbuf, insize, recvbuf, recvsize, replybuf, &replysize);
 
     fprintf(stderr, "Transmitted RMAP Read Reply:\n");
     output_buffer(replybuf, replysize, 0);
@@ -133,7 +133,7 @@ void test_read_channel(){
 
     const uint8_t *outbuf;
     size_t   outsize;
-    rmapw.validate_reply(retnbuf, retnsize, &outbuf, &outsize);
+    rmapr.validate_reply(retnbuf, retnsize, &outbuf, &outsize);
 }
 
 int main(int argc, char *argv[])
