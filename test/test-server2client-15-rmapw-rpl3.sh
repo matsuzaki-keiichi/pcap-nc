@@ -13,7 +13,6 @@ mkfifo $FIFO
 
 PCAPNC='stdbuf -i 0 -o 0 ../bin/pcap-nc'
 OPTSEND='--original-time --interval=0.001 --before=2'
-OPTRSPN='--original-time --interval=0.0'
 OPTSERV='-l 14800'
 OPTCLNT='127.0.0.1 14800 --no-stdin'
 
@@ -22,6 +21,6 @@ $PCAPNC $OPTSERV $OPTSEND $CHAN --check-reply < test-spp.pcap >&/dev/null &
 
 sleep 1
 echo starting client
-$PCAPNC $OPTCLNT --link-type=spw <$FIFO | ../bin/pcap-rmap-target $CHAN | ../bin/pcap-replay $OPTRSPN >$FIFO
+$PCAPNC $OPTCLNT --link-type=spw <$FIFO | ../bin/pcap-rmap-target $CHAN >$FIFO
 
 rm $FIFO

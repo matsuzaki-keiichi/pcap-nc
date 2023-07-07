@@ -165,12 +165,10 @@ int main(int argc, char *argv[])
       pcapnc_network_encode_uint32(trans_buf+ 4, ip.nanosec);
     }
 
-    size_t cmdlen;
     uint8_t *inpbuf = input_buf + PACKET_HEADER_SIZE;
     uint8_t *cmdbuf = trans_buf + PACKET_HEADER_SIZE;
+    size_t   cmdlen = PACKET_DATA_MAX_SIZE;
     if ( use_rmap_channel ) {
-
-      cmdlen = PACKET_DATA_MAX_SIZE;
       if ( rmapc.is_write_channel() ){
         const size_t inplen  = ip.caplen;
         rmapc.generate_write_command(inpbuf, inplen, cmdbuf, cmdlen);
@@ -209,7 +207,7 @@ int main(int argc, char *argv[])
     ret = pcapnc_fwrite(trans_buf, 1, PACKET_HEADER_SIZE+cmdlen, stdout);
 
     if ( use_rmap_reply ) {
-
+      // reuse - input_buf      
       ret = lp.read_packet_header(input_buf, sizeof(input_buf), PROGNAME, "input"); 
       if ( ret > 0 ) return ret; 
       if ( ret < 0 ) { s3sim_sleep(param_after_wtime); return 0; }
@@ -220,14 +218,17 @@ int main(int argc, char *argv[])
 
       const size_t num_path_address = rmap_num_path_address(input_buf + PACKET_HEADER_SIZE, lp.caplen);
       const uint8_t *retnbuf = input_buf + PACKET_HEADER_SIZE + num_path_address; 
-      size_t retnlen = ((size_t) lp.caplen) - num_path_address;
+      size_t         retnlen = ((size_t) lp.caplen) - num_path_address;
 
       // check returned packet is expected
 
       const uint8_t *outbuf;
       size_t outsize;
-
       rmapc.validate_reply(retnbuf, retnlen, outbuf, outsize);
+
+      if ( !rmapc.is_write_channel() ){
+        // Read Channel
+      }
     }
   }
   

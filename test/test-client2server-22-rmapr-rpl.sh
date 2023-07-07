@@ -16,4 +16,4 @@ OPTCLNT='127.0.0.1 14800 --sleep=1'
 echo "starting client (1sec delay)"
 $PCAPNC $OPTCLNT $OPTSEND $CHAN < test-spp.pcap >/dev/null &
 echo starting server
-$PCAPNC $OPTSERV --link-type=spw | ../bin/pcap-rmap-target $CHAN --send-data=test-spp.pcap >outdir/test-rmapr-rpl-out.pcap
+$PCAPNC $OPTSERV --link-type=spw | ../bin/pcap-rmap-target $CHAN --send-data=test-spp.pcap | ../bin/pcap-store --link-type=spw >outdir/test-rmapr-rpl-out.pcap

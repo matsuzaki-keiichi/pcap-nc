@@ -81,6 +81,7 @@ int main(int argc, char *argv[])
   static uint8_t input_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
   static uint8_t outpt_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
 
+#if 0
   static uint8_t output_pcap_header[PCAP_HEADER_SIZE] = {
     0xA1, 0xB2, 0x3C, 0x4D, // Magic Number Nano Sec
     0x00, 0x02, 0x00, 0x04, // Major Version, Minor Version
@@ -89,6 +90,7 @@ int main(int argc, char *argv[])
     0x00, 0x01, 0x00, 0x12, // Scap Len
     0x00, 0x00, 0x00, 0x95  // Link Type (0x95=149: DLT_USER2 = SpaceWire)
   };
+#endif
 
   ssize_t ret;
 
@@ -105,6 +107,7 @@ int main(int argc, char *argv[])
     rmapc.read_json(param_config.c_str(), param_channel.c_str());
   }
 
+#if 0
   uint8_t linktype;
   if ( use_rmap_channel && rmapc.has_responces() ) {
     linktype = 0x95; // SpaceWire
@@ -118,6 +121,7 @@ int main(int argc, char *argv[])
     pcapnc_logerr(PROGNAME "Write Error (PCAP Header).\n");
     return ERROR_5;
   }
+#endif  
 
   while(1){
     ret = ip.read_packet_header(input_buf, sizeof(input_buf), PROGNAME, "input"); if ( ret > 0 ) return ret; if ( ret < 0 ) return 0;
