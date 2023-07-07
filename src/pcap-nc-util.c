@@ -112,6 +112,11 @@ uint32_t pcapnc_network_decode_uint32(void *ptr){
 #define ERROR_4 4
 #define ERROR_5 5
 
+int pcap_file::read_nohead(FILE *input){
+  this->rp = input;
+  return 0;
+}
+
 int pcap_file::read_head(FILE *input){
 
   this->rp = input;
@@ -172,7 +177,7 @@ int pcap_file::write_head(FILE *output, uint8_t linktype){
   return 0;
 }
 
-int pcap_file::read_head(const char *filename){
+int pcap_file::read_nohead(const char *filename){
   FILE *rp = fopen(filename, "r");
   if ( rp == NULL ) {
     pcapnc_logerr("Input file (%s) open failed.\n", filename);
@@ -182,7 +187,11 @@ int pcap_file::read_head(const char *filename){
   const int ret = setvbuf(rp,  NULL, _IONBF, 0);
   if ( ret != 0 ) pcapnc_logerr("Failed to Unset input buffer.\n");
 
-  return pcap_file::read_head(rp);    
+  return pcap_file::read_nohead(rp);    
+}  
+
+int pcap_file::read_head(const char *filename){
+  return pcap_file::read_nohead(filename) || pcap_file::read_head(this->rp);    
 }
 
 int pcap_file::write_head(const char *filename, uint8_t linktype){

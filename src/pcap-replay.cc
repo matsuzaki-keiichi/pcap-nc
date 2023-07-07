@@ -111,7 +111,8 @@ int main(int argc, char *argv[])
 
   pcap_file lp;
   if ( param_replyfile != ""  ){
-    const int r_ret = lp.read_head(param_replyfile.c_str()); if ( r_ret ) return r_ret;
+    const char *filename = param_replyfile.c_str();
+    const int r_ret = lp.read_nohead(filename); if ( r_ret ) return r_ret;
     use_rmap_reply = 1;
   }
   pcap_file sp;

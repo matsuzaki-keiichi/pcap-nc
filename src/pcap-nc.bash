@@ -145,13 +145,14 @@ done
 sleep $SLEEP
 
 FIFO=/tmp/pcapnc-fifo-$$
+NOBUF='stdbuf -i 0 -o 0'
 
 if   [[ "$param_no_stdin" -ne 0 ]]; then	
 	stdbuf -i 0 -o 0 nc -q 0 -w 10 -N $args_nc | stdbuf -i 0 -o 0 $progdir/pcap-store $args_store
 elif [[ "$param_check_reply" -ne 0 ]]; then
 	mkfifo $FIFO
     $progdir/pcap-replay $args_replay --receive-reply $FIFO |\
-	stdbuf -i 0 -o 0 nc -q 0 -w 10 -N $args_nc | stdbuf -i 0 -o 0 $progdir/pcap-store $args_store >$FIFO
+	stdbuf -i 0 -o 0 nc -q 0 -w 10 -N $args_nc >$FIFO
 	rm $FIFO
 else
 	$progdir/pcap-replay $args_replay |\

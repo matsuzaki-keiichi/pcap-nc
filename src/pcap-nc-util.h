@@ -23,8 +23,11 @@ class pcap_file {
   uint32_t caplen;
   uint32_t orglen;
 
-  int read_head(FILE *input);
-  int read_head(const char *filename);
+  int read_nohead(FILE *input);
+  int read_nohead(const char *filename);
+  int read_head  (FILE *input);
+  int read_head  (const char *filename);
+
   int read_packet_header(uint8_t record_buffer[], size_t buffer_size, const char *prog_name, const char *source_name);
   int read_packet_data  (uint8_t record_buffer[], const char *prog_name, const char *source_name);
 
