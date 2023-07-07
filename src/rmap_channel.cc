@@ -177,10 +177,6 @@ int rmap_channel::has_responces() const {
 
 #define RMAP_PROTOCOL_ID 0x01
 
-size_t rmap_channel::generate_read_command(uint8_t trnsbuf[]) {
-    return this->generate_command_head(trnsbuf);
-}
-
 size_t rmap_channel::generate_command_head(uint8_t trnsbuf[]) {
     // This function generate a part of Command Header also for RMAP Write command
 
@@ -231,29 +227,89 @@ size_t rmap_channel::generate_command_head(uint8_t trnsbuf[]) {
     return 16+m+n;
 }
 
-void rmap_channel::generate_write_command(const uint8_t inbuf[], size_t data_length, uint8_t trnsbuf[], size_t *trnssize_p) {
+size_t rmap_channel::generate_read_command(uint8_t trnsbuf[]) {
+    return this->generate_command_head(trnsbuf);
+}
+
+void rmap_channel::generate_write_command(const uint8_t inputbuf[], size_t inputlen, uint8_t trnsbuf[], size_t &trnslen) {
 
     // this method should be called only for RMAP Write Command 
     // i.e. this->instruction & 0x20 != 0
 
-    this->data_length = data_length;
+    this->data_length = inputlen;
 
-    const size_t trnssize0 = this->generate_command_head(trnsbuf);
-    const size_t trnssize1 = trnssize0 + data_length + 1 /* CRC length */;
+    const size_t trnslen0 = this->generate_command_head(trnsbuf);
+    const size_t trnslen1 = trnslen0 + inputlen + 1 /* CRC length */;
 
-    if ( trnssize1 > *trnssize_p ) {
-        pcapnc_logerr("output size (%zu) exceeds the buffer size (%zu).\n", trnssize1, *trnssize_p);
+    if ( trnslen1 > trnslen ) {
+        pcapnc_logerr("output size (%zu) exceeds the buffer size (%zu).\n", trnslen1, trnslen);
         exit(1);        
     }
 
-    uint8_t *const data = trnsbuf + trnssize0;
-    memcpy(data, inbuf, data_length);
-    data[data_length] = rmap_calculate_crc(data, data_length); /* Data CRC */
+    uint8_t *const data = trnsbuf + trnslen0;
+    memcpy(data, inputbuf, inputlen);
+    data[data_length] = rmap_calculate_crc(data, inputlen); /* Data CRC */
 
-    *trnssize_p = trnssize1;    
+    trnslen = trnslen1;    
 }
 
-void rmap_channel::validate_command(const uint8_t recvbuf[], size_t recvsize, const uint8_t **outbuf_p, size_t *outsize_p) const {
+void rmap_channel::generate_reply_head(const uint8_t recvbuf[], size_t recvlen, uint8_t replybuf[], size_t &replylen) const {
+    const uint8_t command_instruction = recvbuf[2];
+    const int source_path_address_length = command_instruction & 0x03;
+    const size_t n = source_path_address_length << 2;
+    const uint8_t status = 0; // TODO implement status ??
+
+    size_t m=0;
+    for ( size_t i=0; i<n ; i++ ){
+        uint8_t ad = recvbuf[4+i];
+        if ( ad == 0 && i != n-1 ) continue;
+        replybuf[m++] = ad;
+    }
+
+    const uint8_t reply_instruction = command_instruction & (0xFF - 0x43);
+    
+    uint8_t *const cargo = replybuf + m;
+    cargo[0] = this->source_logical_address;
+    cargo[1] = RMAP_PROTOCOL_ID;
+    cargo[2] = reply_instruction;
+    cargo[3] = status;
+    cargo[4] = this->destination_logical_address;
+    cargo[5] = recvbuf[ 5+n];
+    cargo[6] = recvbuf[ 6+n];
+    replylen = m+8;
+}
+
+void rmap_channel::generate_write_reply(const uint8_t recvbuf[], size_t recvlen, uint8_t replybuf[], size_t &replylen) const {
+    size_t headlen = replylen;
+
+    this -> generate_reply_head(recvbuf, recvlen, replybuf, headlen);
+
+    uint8_t *const cargo = replybuf + headlen - 8;
+
+    cargo[7] = rmap_calculate_crc(cargo, 7);
+    replylen = headlen;
+}
+
+void rmap_channel::generate_read_reply(const uint8_t inputbuf[], size_t inputlen, const uint8_t recvbuf[], size_t recvlen, uint8_t replybuf[], size_t &replylen) const {
+    size_t headlen = replylen;
+
+    this -> generate_reply_head(recvbuf, recvlen, replybuf, headlen);
+
+    uint8_t *const cargo = replybuf + headlen - 8;
+    cargo[ 7] = 0x00;
+    cargo[ 8] = (inputlen >> 16) & 0xFF;
+    cargo[ 9] = (inputlen >>  8) & 0xFF;
+    cargo[10] = (inputlen >>  0) & 0xFF;
+    cargo[11] = rmap_calculate_crc(cargo, 11);
+
+    uint8_t *const data = cargo + 12;
+    memcpy(data, inputbuf, inputlen);
+    data[inputlen] = rmap_calculate_crc(data, inputlen); /* Data CRC */
+
+    replylen = headlen + 4 + inputlen + 1 /* Data CRC */;
+}
+
+void rmap_channel::validate_command(const uint8_t recvbuf[], size_t recvlen, const uint8_t *(outbuf_p[]), size_t &outlen) const {
     const uint8_t *const cargo = recvbuf;
 
     if ( cargo[0] != this->destination_logical_address ){
@@ -314,9 +370,9 @@ void rmap_channel::validate_command(const uint8_t recvbuf[], size_t recvsize, co
         +                        (((size_t) cargo[13+n]) <<  8) 
         +                        (((size_t) cargo[14+n]) <<  0);
 
-    if ( 16+n+data_length+1 != recvsize ){
+    if ( 16+n+data_length+1 != recvlen ){
         pcapnc_logerr("Data Length (%zu) is not consistent received packet size (%zu).\n", 
-            data_length, recvsize);
+            data_length, recvlen);
         return;       
     }
 
@@ -328,66 +384,10 @@ void rmap_channel::validate_command(const uint8_t recvbuf[], size_t recvsize, co
     }
 
     *outbuf_p  = data;
-    *outsize_p = data_length;
+    outlen = data_length;
 }
 
-void rmap_channel::generate_reply_head(const uint8_t recvbuf[], size_t recvsize, uint8_t replybuf[], size_t *headlen) const {
-    const uint8_t command_instruction = recvbuf[2];
-    const int source_path_address_length = command_instruction & 0x03;
-    const size_t n = source_path_address_length << 2;
-    const uint8_t status = 0; // TODO implement status ??
-
-    size_t m=0;
-    for ( size_t i=0; i<n ; i++ ){
-        uint8_t ad = recvbuf[4+i];
-        if ( ad == 0 && i != n-1 ) continue;
-        replybuf[m++] = ad;
-    }
-
-    const uint8_t reply_instruction = command_instruction & (0xFF - 0x43);
-    
-    uint8_t *const cargo = replybuf + m;
-    cargo[0] = this->source_logical_address;
-    cargo[1] = RMAP_PROTOCOL_ID;
-    cargo[2] = reply_instruction;
-    cargo[3] = status;
-    cargo[4] = this->destination_logical_address;
-    cargo[5] = recvbuf[ 5+n];
-    cargo[6] = recvbuf[ 6+n];
-    *headlen = m+8;
-}
-
-void rmap_channel::generate_write_reply(const uint8_t recvbuf[], size_t recvsize, uint8_t replybuf[], size_t *replylen) const {
-    size_t headlen = *replylen;
-
-    this -> generate_reply_head(recvbuf, recvsize, replybuf, &headlen);
-
-    uint8_t *const cargo = replybuf + headlen - 8;
-
-    cargo[7] = rmap_calculate_crc(cargo, 7);
-    *replylen = headlen;
-}
-
-void rmap_channel::generate_read_reply(const uint8_t inbuf[], size_t data_length, const uint8_t recvbuf[], size_t recvsize, uint8_t replybuf[], size_t *replylen) const {
-    size_t headlen = *replylen;
-
-    this -> generate_reply_head(recvbuf, recvsize, replybuf, &headlen);
-
-    uint8_t *const cargo = replybuf + headlen - 8;
-    cargo[ 7] = 0x00;
-    cargo[ 8] = (data_length >> 16) & 0xFF;
-    cargo[ 9] = (data_length >>  8) & 0xFF;
-    cargo[10] = (data_length >>  0) & 0xFF;
-    cargo[11] = rmap_calculate_crc(cargo, 11);
-
-    uint8_t *const data = cargo + 12;
-    memcpy(data, inbuf, data_length);
-    data[data_length] = rmap_calculate_crc(data, data_length); /* Data CRC */
-
-    *replylen = headlen + 4 + data_length + 1 /* Data CRC */;
-}
-
-void rmap_channel::validate_reply(const uint8_t recvbuf[], size_t recvsize, const uint8_t **outbuf_p, size_t *outsize_p) const {
+void rmap_channel::validate_reply(const uint8_t recvbuf[], size_t recvlen, const uint8_t *(outbuf_p[]), size_t &outlen) const {
 
     // Wrire Reply (e.g. 0x28)
     // Instruction field = RMAP Reply
@@ -401,9 +401,9 @@ void rmap_channel::validate_reply(const uint8_t recvbuf[], size_t recvsize, cons
 
     const uint8_t *const cargo = recvbuf;
 
-    if ( this->is_write_channel() && recvsize != 8 ){
+    if ( this->is_write_channel() && recvlen != 8 ){
         pcapnc_logerr("Length of a Write Reply is not 8 but 0x%zu.\n", 
-            recvsize);
+            recvlen);
         return;       
     }
     if ( cargo[0] != this->source_logical_address ){
@@ -464,7 +464,7 @@ void rmap_channel::validate_reply(const uint8_t recvbuf[], size_t recvsize, cons
         }
 
         *outbuf_p  = data;
-        *outsize_p = data_length;
+        outlen = data_length;
     }
     return;
 }

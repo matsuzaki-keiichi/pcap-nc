@@ -139,7 +139,7 @@ int main(int argc, char *argv[])
 
         if ( !use_rmaprd_rpl ) {
           // generate RMAP Write Reply
-          rmapc.generate_write_reply(recv_packet, recvlen, replybuf, &outlen);
+          rmapc.generate_write_reply(recv_packet, recvlen, replybuf, outlen);
         } else {
           // generate RMAP READ Reply
           uint8_t sendbuf[999];
@@ -149,13 +149,13 @@ int main(int argc, char *argv[])
           uint8_t *send_packet  = sendbuf  + PACKET_HEADER_SIZE;
           const size_t sendsize = lp.caplen;
 
-          rmapc.generate_read_reply(send_packet, sendsize, recv_packet, recvlen, replybuf, &outlen);
+          rmapc.generate_read_reply(send_packet, sendsize, recv_packet, recvlen, replybuf, outlen);
         }
         memcpy(outbuf+PACKET_HEADER_SIZE, replybuf, outlen);
       } else {
         const uint8_t *out_packet; 
 
-        rmapc.validate_command(recv_packet, recvlen, &out_packet, &outlen); // extract Service Data Unit (e.g. Space Packet)
+        rmapc.validate_command(recv_packet, recvlen, &out_packet, outlen); // extract Service Data Unit (e.g. Space Packet)
         memcpy(outbuf+PACKET_HEADER_SIZE, out_packet, outlen);
       } 
 

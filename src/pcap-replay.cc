@@ -170,16 +170,15 @@ int main(int argc, char *argv[])
     uint8_t *trns_packet = trnsbuf + PACKET_HEADER_SIZE;
     if ( use_rmap_channel ) {
 
-      size_t trnssize = PACKET_DATA_MAX_SIZE;
+      trnslen = PACKET_DATA_MAX_SIZE;
       if ( rmapc.is_write_channel() ){
-        const size_t insize  = ip.caplen;
-        rmapc.generate_write_command(in_packet, insize, trns_packet, &trnssize);
+        const size_t inlen  = ip.caplen;
+        rmapc.generate_write_command(in_packet, inlen, trns_packet, trnslen);
 //fprintf(stderr,"write channel\n");        
       } else {
 //fprintf(stderr,"read channel\n");        
-        trnssize = rmapc.generate_read_command(trns_packet);
+        trnslen = rmapc.generate_read_command(trns_packet);
       }
-      trnslen = trnssize;
     } else {
       memcpy(trns_packet, in_packet, ip.caplen);
       trnslen = ip.caplen;
@@ -228,7 +227,7 @@ int main(int argc, char *argv[])
       const uint8_t *outbuf;
       size_t outsize;
 
-      rmapc.validate_reply(retnbuf, retnlen, &outbuf, &outsize);
+      rmapc.validate_reply(retnbuf, retnlen, &outbuf, outsize);
     }
   }
   

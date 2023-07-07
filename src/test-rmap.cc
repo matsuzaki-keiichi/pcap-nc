@@ -40,7 +40,7 @@ static void test_write_channel(){
     uint8_t  sendbuf[999];
     size_t   sendsize   = sizeof(sendbuf);
 
-    rmapw.generate_write_command(inbuf, insize, sendbuf, &sendsize);
+    rmapw.generate_write_command(inbuf, insize, sendbuf, sendsize);
 
     fprintf(stderr, "Transmitted RMAP Write Command:\n");
     output_buffer(sendbuf, sendsize, rmapw.num_dpa_padding);
@@ -59,7 +59,7 @@ static void test_write_channel(){
     const uint8_t *outbuf;
     size_t         outsize = 0;
 
-    rmapw.validate_command(recvbuf, recvsize, &outbuf, &outsize);
+    rmapw.validate_command(recvbuf, recvsize, &outbuf, outsize);
 
     fprintf(stderr, "Received Data (%zu):\n", outsize);
     output_buffer(outbuf, outsize, 0);
@@ -69,7 +69,7 @@ static void test_write_channel(){
     uint8_t  replybuf[20];
     size_t   replysize   = sizeof(replybuf);
 
-    rmapw.generate_write_reply(recvbuf, recvsize, replybuf, &replysize);
+    rmapw.generate_write_reply(recvbuf, recvsize, replybuf, replysize);
 
     fprintf(stderr, "Transmitted RMAP Reply:\n");
     output_buffer(replybuf, replysize, 0);
@@ -85,7 +85,7 @@ static void test_write_channel(){
 
     const uint8_t *dmybuf;
     size_t   dmysize;
-    rmapw.validate_reply(retnbuf, retnsize, &dmybuf, &dmysize);
+    rmapw.validate_reply(retnbuf, retnsize, &dmybuf, dmysize);
 }
 
 void test_read_channel(){
@@ -117,7 +117,7 @@ void test_read_channel(){
     uint8_t  replybuf[999];
     size_t   replysize   = sizeof(replybuf);
 
-    rmapr.generate_read_reply(inbuf, insize, recvbuf, recvsize, replybuf, &replysize);
+    rmapr.generate_read_reply(inbuf, insize, recvbuf, recvsize, replybuf, replysize);
 
     fprintf(stderr, "Transmitted RMAP Read Reply:\n");
     output_buffer(replybuf, replysize, 0);
@@ -133,7 +133,7 @@ void test_read_channel(){
 
     const uint8_t *outbuf;
     size_t   outsize;
-    rmapr.validate_reply(retnbuf, retnsize, &outbuf, &outsize);
+    rmapr.validate_reply(retnbuf, retnsize, &outbuf, outsize);
 }
 
 int main(int argc, char *argv[])

@@ -5,7 +5,7 @@
 #define RMAP_MAX_NUM_PATH_ADDRESS 12
 
 class rmap_channel {
-    public:
+  public:
     rmap_channel();
 
     void read_json(const char *file_name, const char *channel_name);
@@ -13,21 +13,22 @@ class rmap_channel {
     int is_write_channel() const;
     int has_responces() const;
 
-    void   generate_write_command(const uint8_t inbuf[],   size_t data_length, uint8_t trnsbuf[],        size_t *trnssize_p);
-    void   generate_read_reply   (const uint8_t inbuf[],   size_t data_length, 
-                                  const uint8_t recvbuf[], size_t recvsize,    uint8_t replybuf[],       size_t *replylen  ) const;
+//                                 INPUT                                            OUTPUT
+  private:
+    size_t generate_command_head  (                                                  uint8_t   trnsbuf[]);
+  public:
+    void   generate_write_command (const uint8_t inputbuf[], size_t inputlen,        uint8_t   trnsbuf[],   size_t &trnslen);
+    size_t generate_read_command  (                                                  uint8_t   trnsbuf[]);
+  private:    
+    void   generate_reply_head    (const uint8_t recvbuf[],  size_t recvlen,         uint8_t   replybuf[],  size_t &replylen) const;
+  public:
+    void   generate_write_reply   (const uint8_t recvbuf[],  size_t recvlen,         uint8_t   replybuf[],  size_t &replylen) const;
+    void   generate_read_reply    (const uint8_t inputbuf[], size_t inputlen,   
+                                   const uint8_t recvbuf[],  size_t recvlen,         uint8_t   replybuf[],  size_t &replylen) const;  
+    void   validate_command       (const uint8_t recvbuf[],  size_t recvlen,   const uint8_t *(outbuf_p[]), size_t &outlen) const;
+    void   validate_reply         (const uint8_t recvbuf[],  size_t recvlen,   const uint8_t *(outbuf_p[]), size_t &outlen) const;
 
-    size_t generate_read_command (                                             uint8_t trnsbuf[]);
-    void   generate_write_reply  (const uint8_t recvbuf[], size_t recvsize,    uint8_t replybuf[],       size_t *replylen  ) const;
-
-    void   validate_command      (const uint8_t recvbuf[], size_t recvsize,    const uint8_t **outbuf_p, size_t *outsize_p ) const;
-    void   validate_reply        (const uint8_t recvbuf[], size_t recvsize,    const uint8_t **outbuf_p, size_t *outsize_p ) const;
-
-    private:
-    size_t generate_command_head (                                             uint8_t trnsbuf[]);
-    void   generate_reply_head   (const uint8_t recvbuf[], size_t recvsize,    uint8_t replybuf[],       size_t *headlen   ) const;
-
-    public:
+  public:
     uint8_t  d_path_address[RMAP_MAX_NUM_PATH_ADDRESS]; size_t num_dpa;
     uint8_t  s_path_address[RMAP_MAX_NUM_PATH_ADDRESS]; size_t num_spa;
     size_t   num_dpa_padding;   
