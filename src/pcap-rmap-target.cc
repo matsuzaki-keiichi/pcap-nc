@@ -9,7 +9,7 @@
 #include <string>
 
 #include "rmap_channel.h"
-#include "pcap-nc-util.h"
+#include "pcapnc.h"
 
 #define PACKET_HEADER_SIZE  16
 #define PACKET_DATA_MAX_SIZE 0x10006
@@ -73,16 +73,16 @@ int main(int argc, char *argv[])
 
   //// setup input/output files
 
-  pcap_file ip; const int i_ret = ip.read_nohead(stdin);   if ( i_ret ) return i_ret;
-  pcap_file op; const int o_ret = op.write_nohead(stdout); if ( o_ret ) return o_ret;
+  pcapnc ip; const int i_ret = ip.read_nohead(stdin);   if ( i_ret ) return i_ret;
+  pcapnc op; const int o_ret = op.write_nohead(stdout); if ( o_ret ) return o_ret;
 
-  pcap_file lp;
+  pcapnc lp;
   if ( param_send_filename != ""  ){
     const int r_ret = lp.read_head(param_send_filename.c_str()); if ( r_ret ) return r_ret;
     use_rmaprd_rpl = 1;
     // TODO should implement consistency check with this->instruction
   }
-  pcap_file sp;
+  pcapnc sp;
   if ( param_storefile != ""  ){
     const uint8_t linktype = 0x94; // Assume SpacePacket
     const int r_ret = sp.write_head(param_storefile.c_str(), linktype); if ( r_ret ) return r_ret;

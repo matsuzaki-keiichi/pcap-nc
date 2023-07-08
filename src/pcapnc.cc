@@ -1,4 +1,4 @@
-#include "pcap-nc-util.h"
+#include "pcapnc.h"
 
 #include <inttypes.h>
 // PRIxN
@@ -19,7 +19,7 @@
 #define READ_RETRY  1 // sec
 #define WRITE_RETRY 1 // sec
 
-size_t pcap_file::read(void *buf, size_t nmemb){
+size_t pcapnc::read(void *buf, size_t nmemb){
   size_t remaining_nmemb = nmemb;
   ssize_t ret;
 
@@ -39,7 +39,7 @@ size_t pcap_file::read(void *buf, size_t nmemb){
   return nmemb - remaining_nmemb;
 }
 
-size_t pcap_file::write(const void *buf, size_t nmemb){
+size_t pcapnc::write(const void *buf, size_t nmemb){
   size_t remaining_nmemb = nmemb;
   ssize_t ret;
   while ( remaining_nmemb > 0 ) {
@@ -91,7 +91,7 @@ uint32_t pcapnc_network_decode_uint32(void *ptr){
  * @return 0:success, othewise fail.
 */
 
-int pcap_file::read_nohead(FILE *rp){
+int pcapnc::read_nohead(FILE *rp){
   this->rp = rp;
   this->p2n = 1;   
   this->exec_bswap = 1; 
@@ -106,7 +106,7 @@ int pcap_file::read_nohead(FILE *rp){
  * @return 0:success, othewise fail.
 */
 
-int pcap_file::read_nohead(const char *filename){
+int pcapnc::read_nohead(const char *filename){
   FILE *rp = fopen(filename, "r");
   if ( rp == NULL ) {
     pcapnc_logerr("Input file (%s) open failed.\n", filename);
@@ -121,7 +121,7 @@ int pcap_file::read_nohead(const char *filename){
  * @return 0:success, othewise fail.
 */
 
-int pcap_file::read_head(const char *filename){
+int pcapnc::read_head(const char *filename){
   return this->read_nohead(filename) || this->read_head(this->rp);    
 }
 
@@ -129,7 +129,7 @@ int pcap_file::read_head(const char *filename){
  * @return 0:success, othewise fail.
 */
 
-int pcap_file::read_head(FILE *rp){
+int pcapnc::read_head(FILE *rp){
 
   this->read_nohead(rp);
 
@@ -171,7 +171,7 @@ int pcap_file::read_head(FILE *rp){
  * @return 0:success, othewise fail.
 */
 
-int pcap_file::write_nohead(FILE *wp){
+int pcapnc::write_nohead(FILE *wp){
   this->wp = wp;
   this->p2n = 1;
   this->exec_bswap = 0;
@@ -194,7 +194,7 @@ static uint8_t output_pcap_header[PCAP_HEADER_SIZE] = {
  * @return 0:success, othewise fail.
 */
 
-int pcap_file::write_head(const char *filename, uint8_t linktype){
+int pcapnc::write_head(const char *filename, uint8_t linktype){
   FILE *wp = fopen(filename, "w");
   if ( wp == NULL ) {
     pcapnc_logerr("Output file (%s) open failed.\n", filename);
@@ -207,7 +207,7 @@ int pcap_file::write_head(const char *filename, uint8_t linktype){
  * @return 0:success, othewise fail.
 */
 
-int pcap_file::write_head(FILE *wp, uint8_t linktype){
+int pcapnc::write_head(FILE *wp, uint8_t linktype){
   this->write_nohead(wp);
 
   output_pcap_header[23] = linktype;
@@ -223,7 +223,7 @@ int pcap_file::write_head(FILE *wp, uint8_t linktype){
 #define PACKET_HEADER_SIZE  16
 // TODO eliminate duplicated definition
 
-int pcap_file::read_packet_header(uint8_t record_buffer[], size_t buffer_size, const char *prog_name, const char *source_name){
+int pcapnc::read_packet_header(uint8_t record_buffer[], size_t buffer_size, const char *prog_name, const char *source_name){
   const size_t ret = this->read(record_buffer, PACKET_HEADER_SIZE);
   if        ( ret == 0 ) {
     return -1;
@@ -244,7 +244,7 @@ int pcap_file::read_packet_header(uint8_t record_buffer[], size_t buffer_size, c
   return 0;
 }
 
-int pcap_file::read_packet_data(uint8_t record_buffer[], const char *prog_name, const char *source_name){
+int pcapnc::read_packet_data(uint8_t record_buffer[], const char *prog_name, const char *source_name){
   const size_t ret = this->read(&(record_buffer[PACKET_HEADER_SIZE]), this->caplen);
   if ( ret < this->caplen ) {
     pcapnc_logerr("%sUnexpected end of input (partial packet data).\n", prog_name);
@@ -268,7 +268,7 @@ static uint8_t inner_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
   @param prog_name   [in] might be used in Error Messages
   @param source_name [in] might be used in Error Messages
 */
-int pcap_file::write_packet_record(uint32_t coarse_time, uint32_t nanosec, uint8_t outpt_buf[], const uint8_t outbuf[], size_t outlen, const char *prog_name, const char *source_name){
+int pcapnc::write_packet_record(uint32_t coarse_time, uint32_t nanosec, uint8_t outpt_buf[], const uint8_t outbuf[], size_t outlen, const char *prog_name, const char *source_name){
 
   uint8_t *const trans_buf = (outpt_buf == NULL) ? inner_buf : outpt_buf;
 
@@ -285,12 +285,12 @@ int pcap_file::write_packet_record(uint32_t coarse_time, uint32_t nanosec, uint8
   return this->write(trans_buf, trans_len);
 }
 
-uint16_t pcap_file::extract_uint16(void *ptr){
+uint16_t pcapnc::extract_uint16(void *ptr){
   const uint16_t value = * (uint16_t*) ptr;
   return (this->exec_bswap) ? bswap_16(value) : value;
 }
 
-uint32_t pcap_file::extract_uint32(void *ptr){
+uint32_t pcapnc::extract_uint32(void *ptr){
   const uint32_t value = * (uint32_t*) ptr;
   return (this->exec_bswap) ? bswap_32(value) : value;
 }

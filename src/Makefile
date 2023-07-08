@@ -9,10 +9,10 @@ pcap-nc: pcap-nc.bash
 pcap-store: pcap-store.bash
 	cp $< $@
 
-pcap-replay: pcap-replay.cc pcap-nc-util.c s3sim.c rmap_channel.cc
+pcap-replay: pcap-replay.cc pcapnc.cc s3sim.c rmap_channel.cc
 	c++ -Wall -I rapidjson/include -o $@ $^ -lm
 
-pcap-rmap-target: pcap-rmap-target.cc pcap-nc-util.c rmap_channel.cc
+pcap-rmap-target: pcap-rmap-target.cc pcapnc.cc rmap_channel.cc
 	c++ -Wall -I rapidjson/include -o $@ $^
 
 test-rmap: test-rmap.cc  rmap_channel.cc	

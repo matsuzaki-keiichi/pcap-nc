@@ -17,7 +17,7 @@
 #include <string>
 
 #include "rmap_channel.h"
-#include "pcap-nc-util.h"
+#include "pcapnc.h"
 #include "s3sim.h"
 
 // #define DEBUG
@@ -103,34 +103,30 @@ int main(int argc, char *argv[])
     // TODO fix tentative implementation.
   }
 
-  pcap_file wp;
+  pcapnc wp;
   const int w_ret = wp.write_nohead(stdout); if ( w_ret ) return w_ret;
 
-  pcap_file lp;
+  pcapnc lp;
   if ( param_replyfile != ""  ){
     const char *filename = param_replyfile.c_str();
     const int r_ret = lp.read_nohead(filename); if ( r_ret ) return r_ret;
     use_rmap_reply = 1;
   }
-  pcap_file sp;
+  pcapnc sp;
   if ( param_storefile != ""  ){
+    const char *filename = param_storefile.c_str();
     const uint8_t linktype = 0x94; // Assume SpacePacket
-    const int r_ret = sp.write_head(param_storefile.c_str(), linktype); if ( r_ret ) return r_ret;
+    const int r_ret = sp.write_head(filename, linktype); if ( r_ret ) return r_ret;
     store_rmap_read = 1;
   }
 
-  debug_fprintf(stderr, "param_before_wtime=%f\n", param_before_wtime);
-
   ////
     
-  static uint8_t input_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
-  static uint8_t trans_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
-
   ssize_t ret;
 
   ////
 
-  pcap_file ip;
+  pcapnc ip;
   const int i_ret = ip.read_head(stdin); if ( i_ret ) return i_ret;
 
   ////
@@ -145,6 +141,8 @@ int main(int argc, char *argv[])
 
 //// int i=0;
   while(1){
+    static uint8_t input_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
+
     ret = ip.read_packet_header(input_buf, sizeof(input_buf), PROGNAME, "file"); 
     if ( ret > 0 ) return ret;                                                                      
     if ( ret < 0 ) { s3sim_sleep(param_after_wtime); return 0; }
@@ -193,6 +191,8 @@ int main(int argc, char *argv[])
     uint8_t     *inpbuf = input_buf + PACKET_HEADER_SIZE;
     const size_t inplen = ip.caplen;
     if ( use_rmap_channel ) {
+      static uint8_t trans_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
+      
       uint8_t   *cmdbuf = trans_buf + PACKET_HEADER_SIZE;
       size_t     cmdlen = PACKET_DATA_MAX_SIZE;
       if ( rmapc.is_write_channel() ){

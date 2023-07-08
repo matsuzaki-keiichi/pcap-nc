@@ -12,7 +12,7 @@ uint32_t pcapnc_network_decode_uint32(void *ptr);
 #define PACKET_HEADER_SIZE  16
 #define PACKET_DATA_MAX_SIZE 0x10006
 
-class pcap_file {
+class pcapnc {
   public:
   uint32_t p2n;
   int exec_bswap;
