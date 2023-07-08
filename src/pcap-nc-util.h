@@ -34,8 +34,8 @@ class pcap_file {
   int write_head(FILE *output, uint8_t linktype);
   int write_head(const char *filename, uint8_t linktype);
 
-  size_t read(void *buf, size_t size, size_t nmemb);
-  size_t write(const void *buf, size_t size, size_t nmemb);
+  size_t read(void *buf, size_t nmemb);
+  size_t write(const void *buf, size_t nmemb);
 
   uint16_t extract_uint16(void *ptr);
   uint32_t extract_uint32(void *ptr);

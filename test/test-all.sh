@@ -14,7 +14,6 @@ function do_test(){
 rm -fr outdir
 mkdir -p outdir
 
-
 # case 24.
 #               Initiator       network       Target
 # xxx/PCAP => RMAPRD/PCAP => {RMAPRD/PCAP} => RMAPRD/PCAP

@@ -7,7 +7,7 @@
 
 mkdir -p outdir
 
-CHAN='--config=sample.json --channel=channel2' # RMAP Write Command with Acknowledge
+CHAN='--config=sample.json --channel=channel2' # RMAP Write Channel with Acknowledge
 
 PCAPNC='stdbuf -i 0 -o 0 ../bin/pcap-nc'
 NC='stdbuf -i 0 -o 0 nc -w 10'

@@ -51,4 +51,6 @@ pcap-rmap-target:
 Input:
 RMAP Command Packets in PCAP Packet Records.
 Output:
-RMAP Reply Packets in PCAP Packet Records.
+RMAP Reply Packets in PCAP Packet Records for RMAP Read Channel or RMAP Write Channel with Acknowledge.
+Service Data Uints in PCAP Packet Records for RMAP Write Channel without Acknowledge.
+

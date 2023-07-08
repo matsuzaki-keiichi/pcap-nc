@@ -246,7 +246,7 @@ int main(int argc, char *argv[])
         pcapnc_network_encode_uint32(outpt_buf+12, outlen);
         memcpy(outpt_buf+PACKET_HEADER_SIZE, outbuf, outlen);
 
-        ret = sp.write(outpt_buf, 1, PACKET_HEADER_SIZE+outlen);        
+        ret = sp.write(outpt_buf, PACKET_HEADER_SIZE+outlen);        
       }
     }
   }

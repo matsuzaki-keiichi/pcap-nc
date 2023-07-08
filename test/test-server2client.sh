@@ -12,7 +12,7 @@ OPTSERV='-l 14800'
 OPTCLNT='127.0.0.1 14800 --no-stdin'
 
 echo starting server
-$PCAPNC $OPTSERV $OPTSEND < test-spp.pcap >/dev/null &
+$PCAPNC $OPTSERV $OPTSEND < test-spp.pcap &
 sleep 1
 echo starting client
 $PCAPNC $OPTCLNT --link-type=spp >outdir/test-spp-out.pcap

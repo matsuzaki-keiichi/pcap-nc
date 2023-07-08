@@ -8,7 +8,7 @@
 
 mkdir -p outdir
 
-CHAN='--config=sample.json --channel=channel3' # RMAP Read Command
+CHAN='--config=sample.json --channel=channel3' # RMAP Read Channel
 
 PCAPNC='../bin/pcap-nc'
 NC='stdbuf -i 0 -o 0 nc -w 10'

@@ -26,12 +26,12 @@ void pcapnc_unset_stdbuf(){
   if ( ret != 0 ) pcapnc_logerr("Failed to Unset stdout buffer.\n");
 }
 
-size_t pcap_file::read(void *buf, size_t size, size_t nmemb){
+size_t pcap_file::read(void *buf, size_t nmemb){
   size_t remaining_nmemb = nmemb;
   ssize_t ret;
 
   while ( remaining_nmemb > 0 ) {	    
-    ret = fread(buf, size, remaining_nmemb, this->rp);
+    ret = fread(buf, 1, remaining_nmemb, this->rp);
 
     if ( ret > 0 ) {
       remaining_nmemb -= ret;
@@ -46,12 +46,12 @@ size_t pcap_file::read(void *buf, size_t size, size_t nmemb){
   return nmemb - remaining_nmemb;
 }
 
-size_t pcap_file::write(const void *buf, size_t size, size_t nmemb){
+size_t pcap_file::write(const void *buf, size_t nmemb){
   size_t remaining_nmemb = nmemb;
   ssize_t ret;
   while ( remaining_nmemb > 0 ) {
     // debug_fprintf(stderr, "remaining_nmemb=%zu\n", remaining_nmemb);	    
-    ret = fwrite(buf, size, remaining_nmemb, this->wp);
+    ret = fwrite(buf, 1, remaining_nmemb, this->wp);
     if ( ret > 0 ) {
       remaining_nmemb -= ret;
     } else {
@@ -125,7 +125,7 @@ int pcap_file::read_head(FILE *input){
 
   uint8_t inbuf[PCAP_HEADER_SIZE];
 
-  ssize_t ret = this->read(inbuf, 1, PCAP_HEADER_SIZE);
+  ssize_t ret = this->read(inbuf, PCAP_HEADER_SIZE);
   if ( ret == 0 ) {
     pcapnc_logerr("No input (missing header).\n");
     return ERROR_1;
@@ -171,7 +171,7 @@ int pcap_file::write_head(FILE *output, uint8_t linktype){
 
   output_pcap_header[23] = linktype;
  
-  ssize_t ret = this->write(output_pcap_header, 1, PCAP_HEADER_SIZE);
+  ssize_t ret = this->write(output_pcap_header, PCAP_HEADER_SIZE);
   if ( ret < PCAP_HEADER_SIZE ) {
     pcapnc_logerr("Output error .\n");
     return ERROR_2;
@@ -217,7 +217,7 @@ int pcap_file::write_head(const char *filename, uint8_t linktype){
 // TODO eliminate duplicated definition
 
 int pcap_file::read_packet_header(uint8_t record_buffer[], size_t buffer_size, const char *prog_name, const char *source_name){
-  const size_t ret = this->read(record_buffer, 1, PACKET_HEADER_SIZE);
+  const size_t ret = this->read(record_buffer, PACKET_HEADER_SIZE);
   if        ( ret == 0 ) {
     return -1;
   } else if ( ret < PACKET_HEADER_SIZE ) {
@@ -238,7 +238,7 @@ int pcap_file::read_packet_header(uint8_t record_buffer[], size_t buffer_size, c
 }
 
 int pcap_file::read_packet_data(uint8_t record_buffer[], const char *prog_name, const char *source_name){
-  const size_t ret = this->read(&(record_buffer[PACKET_HEADER_SIZE]), 1, this->caplen);
+  const size_t ret = this->read(&(record_buffer[PACKET_HEADER_SIZE]), this->caplen);
   if ( ret < this->caplen ) {
     pcapnc_logerr("%sUnexpected end of input (partial packet data).\n", prog_name);
     return ERROR_7;
