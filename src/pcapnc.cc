@@ -109,7 +109,7 @@ int pcapnc::read_nohead(FILE *rp){
 int pcapnc::read_nohead(const char *filename){
   FILE *rp = fopen(filename, "r");
   if ( rp == NULL ) {
-    pcapnc_logerr("Input file (%s) open failed.\n", filename);
+    //// pcapnc_logerr("Input file (%s) open failed.\n", filename);
     return ERROR_5;
   }
 
@@ -197,7 +197,7 @@ static uint8_t output_pcap_header[PCAP_HEADER_SIZE] = {
 int pcapnc::write_head(const char *filename, uint8_t linktype){
   FILE *wp = fopen(filename, "w");
   if ( wp == NULL ) {
-    pcapnc_logerr("Output file (%s) open failed.\n", filename);
+    //// pcapnc_logerr("Output file (%s) open failed.\n", filename);
     return ERROR_5;
   }
   return this->write_head(wp, linktype);    

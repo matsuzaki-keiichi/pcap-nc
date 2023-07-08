@@ -31,15 +31,16 @@ static struct option long_options[] = {
   { NULL,        0,                 NULL,  0 }
 };
 
-static std::string param_config        = ""; 
-static std::string param_channel       = ""; 
-static std::string param_send_filename = ""; 
-static std::string param_storefile     = ""; 
+static std::string param_config         = ""; 
+static std::string param_channel        = ""; 
+static std::string param_send_filename  = ""; 
+static std::string param_store_filename = ""; 
 
 static int use_rmaprd_rpl   = 0;
 
 #define PROGNAME "pcap-rmap-target: "
 
+#define ERROR_OPT 1
 
 int main(int argc, char *argv[])
 {
@@ -55,10 +56,10 @@ int main(int argc, char *argv[])
     if ( c == -1 ) break;
     
     switch (c) {
-    case 'c': param_config        = std::string(optarg); break;
-    case 'n': param_channel       = std::string(optarg); break;
-    case 's': param_send_filename = std::string(optarg); break;
-    case 't': param_storefile     = std::string(optarg); break;
+    case 'c': param_config         = std::string(optarg); break;
+    case 'n': param_channel        = std::string(optarg); break;
+    case 's': param_send_filename  = std::string(optarg); break;
+    case 't': param_store_filename = std::string(optarg); break;
     default: option_error=1; break;
     }
   }
@@ -66,9 +67,59 @@ int main(int argc, char *argv[])
     return 1;
   }
   
-  if ( param_config == "" && param_channel == "" ){
-    return 2;
-    // TODO fix tentative implementation.
+  if ( param_config == "" ){
+    pcapnc_logerr(PROGNAME "option '--config' is mandatory.\n");
+    return ERROR_OPT;
+  } 
+  if ( param_channel == "" ){
+    pcapnc_logerr(PROGNAME "option '--channel' is mandatory.\n");
+    return ERROR_OPT;
+  }  
+  class rmap_channel rmapc;
+  const char* config_str  = param_config.c_str();
+  const char* channel_str = param_channel.c_str();
+  int ret = rmapc.read_json(config_str, channel_str);
+  if ( ret != 0 ){
+    if        ( ret == rmap_channel::NOFILE ){
+      pcapnc_logerr(PROGNAME "configuration file '%s' is not found\n", config_str);
+    } else if ( ret == rmap_channel::JSON_ERROR ){
+      pcapnc_logerr(PROGNAME "parse error in configuration file '%s'\n", config_str);
+    } else {        // rmap_channel::NOCHANNEL
+      pcapnc_logerr(PROGNAME "channel '%s' is not found\n", channel_str );
+    }
+    return ERROR_OPT;
+  }
+
+  pcapnc lp;
+  if ( param_send_filename != ""  ){
+    if ( rmapc.is_write_channel() ) {
+      pcapnc_logerr(PROGNAME "option '--send-data' could not be specified for RMAP Write channel '%s'.\n",  channel_str);
+      return ERROR_OPT;      
+    }
+    const char *filename = param_send_filename.c_str();
+    const int r_ret = lp.read_head(filename); 
+    if ( r_ret ) {
+      pcapnc_logerr(PROGNAME "file '%s' to send data could not be opend.\n",  filename);
+      return ERROR_OPT;      
+    }
+    use_rmaprd_rpl = 1;
+    // TODO should implement consistency check with this->instruction
+  }
+
+  pcapnc sp;
+  if ( param_store_filename != ""  ){
+    if ( rmapc.is_read_channel() ) {
+      pcapnc_logerr(PROGNAME "option '--store-data' could not be specified for RMAP Read channel '%s'.\n",  channel_str);
+      return ERROR_OPT;      
+    }
+    const char *filename = param_store_filename.c_str();
+    const uint8_t linktype = 0x94; // Assume SpacePacket
+    const int r_ret = sp.write_head(filename, linktype); 
+    if ( r_ret ) {
+      pcapnc_logerr(PROGNAME "file '%s' to store data could not be opend.\n",  filename);
+      return ERROR_OPT;
+    }
+    store_rmap_write = 1;
   }
 
   //// setup input/output files
@@ -76,29 +127,12 @@ int main(int argc, char *argv[])
   pcapnc ip; const int i_ret = ip.read_nohead(stdin);   if ( i_ret ) return i_ret;
   pcapnc op; const int o_ret = op.write_nohead(stdout); if ( o_ret ) return o_ret;
 
-  pcapnc lp;
-  if ( param_send_filename != ""  ){
-    const int r_ret = lp.read_head(param_send_filename.c_str()); if ( r_ret ) return r_ret;
-    use_rmaprd_rpl = 1;
-    // TODO should implement consistency check with this->instruction
-  }
-  pcapnc sp;
-  if ( param_storefile != ""  ){
-    const uint8_t linktype = 0x94; // Assume SpacePacket
-    const int r_ret = sp.write_head(param_storefile.c_str(), linktype); if ( r_ret ) return r_ret;
-    store_rmap_write = 1;
-  }
-
   ////
     
   static uint8_t input_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
 
-  ssize_t ret;
-
-  class rmap_channel rmapc;
-  rmapc.read_json(param_config.c_str(), param_channel.c_str());
-
   while(1){
+    ssize_t ret;
     ret = ip.read_packet_header(input_buf, sizeof(input_buf), PROGNAME, "input"); if ( ret > 0 ) return ret; if ( ret < 0 ) return 0;
     ret = ip.read_packet_data(input_buf, PROGNAME, "input"); if ( ret > 0 ) return ret;
 

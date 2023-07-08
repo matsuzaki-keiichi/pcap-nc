@@ -106,7 +106,8 @@ int main(int argc, char *argv[])
   class rmap_channel rmapc;
   if ( param_channel != "" ){
     if ( param_config == "" ){
-      pcapnc_logerr(PROGNAME "option '--channel' requires option '--config'\n");
+      pcapnc_logerr(PROGNAME "option '--channel' requires option '--config'\n"); 
+      // test-pcap-replay-options1
       return ERROR_OPT;
     } 
     int ret = rmapc.read_json(param_config.c_str(), param_channel.c_str());
@@ -145,6 +146,7 @@ int main(int argc, char *argv[])
       pcapnc_logerr(PROGNAME "option '--store-data' requires option '--receive-reply'\n");
       return ERROR_OPT;      
     }
+    store_rmap_read = 1;
   }
 
   ////
@@ -167,15 +169,13 @@ int main(int argc, char *argv[])
 
   pcapnc sp;
   if ( param_storefile != ""  ){
-    if ( ! use_rmap_channel || ! rmapc.is_read_channel() ) {
-
-    }
-    
-    
     const char *filename = param_storefile.c_str();
     const uint8_t linktype = 0x94; // Assume SpacePacket
-    const int r_ret = sp.write_head(filename, linktype); if ( r_ret ) return r_ret;
-    store_rmap_read = 1;
+    const int r_ret = sp.write_head(filename, linktype);
+    if ( r_ret ) {
+      pcapnc_logerr(PROGNAME "file '%s' to store data could not be opend.\n",  filename);
+      return ERROR_OPT;      
+    }
   }
 
   ////

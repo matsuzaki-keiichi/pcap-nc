@@ -6,7 +6,7 @@ function do_test(){
   diff expected/$2 outdir
   if [ $? -ne 0 ]; then  
     echo test failed
-    exit
+    exit 1
   fi
   rm -f $3
 }
@@ -26,7 +26,7 @@ do_test '../bin/pcap-replay --receive-reply=xxxxx'               test-pcap-repla
 do_test "../bin/pcap-replay $CHANWO --receive-reply=xxxx"        test-pcap-replay-options6.log 
 do_test "../bin/pcap-replay --store-data=xxxx"                   test-pcap-replay-options7.log 
 do_test "../bin/pcap-replay $CHANWR --store-data=xxxx"           test-pcap-replay-options8.log 
-do_test "../bin/pcap-replay $CHANRD --store-data=xxxx"           test-pcap-replay-options9.log 
+do_test "../bin/pcap-replay $CHANRD --store-data=xxxx"           test-pcap-replay-options9.log
 
 echo all test succeeded
 

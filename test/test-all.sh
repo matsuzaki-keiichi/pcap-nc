@@ -14,6 +14,21 @@ function do_test(){
 rm -fr outdir
 mkdir -p outdir
 
+echo ./test-pcap-replay-options.sh
+./test-pcap-replay-options.sh
+if [ $? -ne 0 ]; then  
+  echo test failed
+  exit
+fi
+
+echo ./test-pcap-rmap-target-options.sh
+./test-pcap-rmap-target-options.sh
+if [ $? -ne 0 ]; then  
+  echo test failed
+  exit
+fi
+
+
 # case 24.
 #               Initiator       network       Target
 # xxx/PCAP => RMAPRD/PCAP => {RMAPRD/PCAP} => RMAPRD/PCAP

@@ -55,7 +55,7 @@ pcap-rmap-target:
   a channel name listed in the cofiguration file
 --config filename: (mandatory)
   name of a configuration file
---send-data output(path): (optional)
+--send-data output(path): (optional; only for RMAP read channel)
   input data for a RMAP Read Channel in the PCAP file format
 --store-data output(path): (optional)
   store user data collected by RMAP Write Transactions in the PCAP format
