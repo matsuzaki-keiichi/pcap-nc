@@ -11,7 +11,9 @@ class rmap_channel {
   public:
     rmap_channel();
 
-    void read_json(const char *file_name, const char *channel_name);
+    enum {NOFILE=1, JSON_ERROR=2, NOCHANNEL=3};
+
+    int read_json(const char *file_name, const char *channel_name);
 
     inline int is_read_channel()  const { return ! this->is_write_channel(); }
     inline int is_write_channel() const { return this->instruction & RMAP_INST_WRITE; }

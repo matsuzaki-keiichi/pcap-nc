@@ -15,12 +15,18 @@ PCAP Packet Records if --link-type is not specified. PCAP file otherwise.
 
 pcap-replay
 Arguments:
+(channel related arguments)
+--config filename: (optional)
+  name of a configuration file
+--channel channelname: (optional; requires --config option)
+  a RMAP channel name listed in the cofiguration file
+--receive-reply input(path): (optional; only for RMAP Read channel or RMAP Write channel with acknowledges)
+  receive reply in the PCAP format from the input and check the reply
+--store-data output(path): (optional; only for RMAP read channel, requires --receive-reply option)
+  store user data collected by RMAP Read Transactions in the PCAP format
+(time/timing related arguments)
 --before wait_sec(double) : (optional)
   time to wait before sending the first Packet Record.
---channel channelname: (mandatory)
-  a channel name listed in the cofiguration file
---config filename: (mandatory)
-  name of a configuration file
 --interval interval_sec (double): (optional)
   time interval to be wait for a Packet Record to the next Packet Record.
   Unless specified, time intervals between Packet Records, which is obtained
@@ -28,10 +34,6 @@ Arguments:
 --original-time: (optional)
   do not update the values in the timestamp fields of a Packet Record.
   Unless specified, the values in the timestamp fields are updated into the current packet transmission time.
---receive-reply input(path): (optional)
-  receive reply in the PCAP format from the input and check the reply
---store-data output(path): (optional)
-  store user data collected by RMAP Read Transactions in the PCAP format
 Input:
 PCAP file
 Note: Input is dummy (i.e. only time is used) for a RMAP Read channel. 
@@ -49,6 +51,10 @@ Output:
 PCAP file.
 
 pcap-rmap-target:
+--channel channelname: (mandatory)
+  a channel name listed in the cofiguration file
+--config filename: (mandatory)
+  name of a configuration file
 --send-data output(path): (optional)
   input data for a RMAP Read Channel in the PCAP file format
 --store-data output(path): (optional)

@@ -112,14 +112,28 @@ rmap_channel::rmap_channel(){
     transaction_id              = 0x9999;
 }
 
-void rmap_channel::read_json(const char *file_name, const char *channel_name)
+/**
+ * @return 0:success, othewise fail. 1:File Does Not Exist
+*/
+
+int rmap_channel::read_json(const char *file_name, const char *channel_name)
 {
     std::ifstream ifs(file_name);
+    if ( !ifs.is_open() )
+    {
+        return rmap_channel::NOFILE;
+    }
+
     rapidjson::IStreamWrapper isw(ifs);
 
     rapidjson::Document doc;
     doc.ParseStream(isw);
- 
+    if ( doc.HasParseError() ){
+        return rmap_channel::JSON_ERROR;
+    }
+
+    int status = 99;
+
 //    rapidjson::Value::MemberIterator attributeIterator = doc.FindMember( "channels" );
     const rapidjson::Value& channels = doc[ "channels" ];
 
@@ -152,6 +166,7 @@ void rmap_channel::read_json(const char *file_name, const char *channel_name)
             this->data_length = 0;
         }
 
+        status = 0;
 
 #ifdef DEBUG
         std::cout << "destination_path_address:    " << channel["destination_path_address"]    .GetString() << std::endl;
@@ -162,6 +177,8 @@ void rmap_channel::read_json(const char *file_name, const char *channel_name)
         std::cout << "memory_address:              " << channel["memory_address"]              .GetString() << std::endl;
 #endif    
     }
+
+    return status;
 }
 
 #define RMAP_PROTOCOL_ID 0x01

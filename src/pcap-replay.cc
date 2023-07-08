@@ -69,6 +69,8 @@ FILE *rp = NULL;
 
 #define PROGNAME "pcap-replay: "
 
+#define ERROR_OPT 1
+
 int main(int argc, char *argv[])
 {
   //// parse options
@@ -96,12 +98,59 @@ int main(int argc, char *argv[])
   }
   if (option_error) {
     return 1;
+
   }
-  
-  if ( param_config != "" && param_channel != "" ){
+
+  ////
+
+  class rmap_channel rmapc;
+  if ( param_channel != "" ){
+    if ( param_config == "" ){
+      pcapnc_logerr(PROGNAME "option '--channel' requires option '--config'\n");
+      return ERROR_OPT;
+    } 
+    int ret = rmapc.read_json(param_config.c_str(), param_channel.c_str());
+    if ( ret != 0 ){
+      if        ( ret == rmap_channel::NOFILE ){
+        pcapnc_logerr(PROGNAME "configuration file '%s' is not found\n", param_config.c_str());
+      } else if ( ret == rmap_channel::JSON_ERROR ){
+        pcapnc_logerr(PROGNAME "parse error in configuration file '%s'\n", param_config.c_str());
+      } else {        // rmap_channel::NOCHANNEL
+        pcapnc_logerr(PROGNAME "channel '%s' is not found\n", param_channel.c_str());
+      }
+      return ERROR_OPT;
+    }
     use_rmap_channel = 1;
-    // TODO fix tentative implementation.
   }
+
+  if ( param_replyfile != ""  ){
+    if ( ! use_rmap_channel ) {
+      pcapnc_logerr(PROGNAME "option '--receive-reply' could be specified only for a RMAP channel.\n");
+      return ERROR_OPT;      
+    } else if ( ! rmapc.has_responces() ) {
+      pcapnc_logerr(PROGNAME "option '--receive-reply' could not be specified for no-acknowledge-channel '%s'.\n",  param_channel.c_str());
+      return ERROR_OPT;      
+    }
+    use_rmap_reply = 1;
+  }
+
+  if ( param_storefile != ""  ){
+    if ( ! use_rmap_channel ) {
+      pcapnc_logerr(PROGNAME "option '--store-data' could be specified only for a RMAP Read channel.\n");
+      return ERROR_OPT;      
+    } else if ( rmapc.is_write_channel() ) {
+      pcapnc_logerr(PROGNAME "option '--store-data' could not be specified for RMAP Write channel '%s'.\n",  param_channel.c_str());
+      return ERROR_OPT;      
+    } else if ( ! use_rmap_reply ) {
+      pcapnc_logerr(PROGNAME "option '--store-data' requires option '--receive-reply'\n");
+      return ERROR_OPT;      
+    }
+  }
+
+  ////
+
+  pcapnc ip;
+  const int i_ret = ip.read_head(stdin); if ( i_ret ) return i_ret;
 
   pcapnc wp;
   const int w_ret = wp.write_nohead(stdout); if ( w_ret ) return w_ret;
@@ -109,11 +158,20 @@ int main(int argc, char *argv[])
   pcapnc lp;
   if ( param_replyfile != ""  ){
     const char *filename = param_replyfile.c_str();
-    const int r_ret = lp.read_nohead(filename); if ( r_ret ) return r_ret;
-    use_rmap_reply = 1;
+    const int r_ret = lp.read_nohead(filename); 
+    if ( r_ret ) {
+      pcapnc_logerr(PROGNAME "file '%s' to receive reply could not be opend.\n",  filename);
+      return ERROR_OPT;      
+    }
   }
+
   pcapnc sp;
   if ( param_storefile != ""  ){
+    if ( ! use_rmap_channel || ! rmapc.is_read_channel() ) {
+
+    }
+    
+    
     const char *filename = param_storefile.c_str();
     const uint8_t linktype = 0x94; // Assume SpacePacket
     const int r_ret = sp.write_head(filename, linktype); if ( r_ret ) return r_ret;
@@ -121,27 +179,13 @@ int main(int argc, char *argv[])
   }
 
   ////
-    
-  ssize_t ret;
-
-  ////
-
-  pcapnc ip;
-  const int i_ret = ip.read_head(stdin); if ( i_ret ) return i_ret;
-
-  ////
 
   double prev_time = -1;
   
-  class rmap_channel rmapc;
-
-  if ( use_rmap_channel ) {
-    rmapc.read_json(param_config.c_str(), param_channel.c_str());
-  }
-
-//// int i=0;
   while(1){
     static uint8_t input_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
+
+    ssize_t ret;
 
     ret = ip.read_packet_header(input_buf, sizeof(input_buf), PROGNAME, "file"); 
     if ( ret > 0 ) return ret;                                                                      
@@ -192,7 +236,7 @@ int main(int argc, char *argv[])
     const size_t inplen = ip.caplen;
     if ( use_rmap_channel ) {
       static uint8_t trans_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
-      
+
       uint8_t   *cmdbuf = trans_buf + PACKET_HEADER_SIZE;
       size_t     cmdlen = PACKET_DATA_MAX_SIZE;
       if ( rmapc.is_write_channel() ){
@@ -231,9 +275,6 @@ int main(int argc, char *argv[])
         // TODO implement error check
       }
     }
-  }
-  
-  debug_fprintf(stderr, "ret=%zd\n", ret);
-  
+  }  
   return 0;
 }
