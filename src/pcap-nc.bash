@@ -7,6 +7,7 @@ args_replay=""
 args_store=""
 param_no_stdin=0
 param_check_reply=0
+param_use_store=0
 
 SLEEP=0
 
@@ -106,6 +107,7 @@ do
 		    exit 1
 	    esac
 	    args_store="$arg_store --link-type=$OPT"
+		param_use_store=1
 	    ;;
 	--no-stdin)
 		param_no_stdin=1
@@ -147,14 +149,28 @@ sleep $SLEEP
 FIFO=/tmp/pcapnc-fifo-$$
 NOBUF='stdbuf -i 0 -o 0'
 
-if   [[ "$param_no_stdin" -ne 0 ]]; then	
-	stdbuf -i 0 -o 0 nc -q 0 -w 10 -N $args_nc | stdbuf -i 0 -o 0 $progdir/pcap-store $args_store
-elif [[ "$param_check_reply" -ne 0 ]]; then
-	mkfifo $FIFO
-    $progdir/pcap-replay $args_replay --receive-reply $FIFO |\
-	stdbuf -i 0 -o 0 nc -q 0 -w 10 -N $args_nc >$FIFO
-	rm $FIFO
+if   [[ "$param_use_store" -eq 0 ]]; then	
+    if   [[ "$param_no_stdin" -ne 0 ]]; then	
+	    stdbuf -i 0 -o 0 nc -q 0 -w 10 -N $args_nc
+	elif [[ "$param_check_reply" -ne 0 ]]; then
+		mkfifo $FIFO
+    	$progdir/pcap-replay $args_replay --receive-reply $FIFO |\
+		stdbuf -i 0 -o 0 nc -q 0 -w 10 -N $args_nc >$FIFO
+		rm $FIFO
+	else
+		$progdir/pcap-replay $args_replay |\
+		stdbuf -i 0 -o 0 nc -q 0 -w 10 -N $args_nc
+	fi
 else
-	$progdir/pcap-replay $args_replay |\
-	stdbuf -i 0 -o 0 nc -q 0 -w 10 -N $args_nc | stdbuf -i 0 -o 0 $progdir/pcap-store $args_store
+    if   [[ "$param_no_stdin" -ne 0 ]]; then	
+	    stdbuf -i 0 -o 0 nc -q 0 -w 10 -N $args_nc | stdbuf -i 0 -o 0 $progdir/pcap-store $args_store
+	elif [[ "$param_check_reply" -ne 0 ]]; then
+		mkfifo $FIFO
+    	$progdir/pcap-replay $args_replay --receive-reply $FIFO |\
+		stdbuf -i 0 -o 0 nc -q 0 -w 10 -N $args_nc >$FIFO
+		rm $FIFO
+	else
+		$progdir/pcap-replay $args_replay |\
+		stdbuf -i 0 -o 0 nc -q 0 -w 10 -N $args_nc | stdbuf -i 0 -o 0 $progdir/pcap-store $args_store
+	fi
 fi

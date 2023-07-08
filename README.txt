@@ -8,6 +8,10 @@ The combination of the argements for pcap-replay(*1), pcap-store and those for n
 --check-reply
   check RMAP Write Reply
 *1: except for --receive-reply
+Input:
+PCAP file if --no-stdin is specified. PCAP Packet Records otherwise.
+Output:
+PCAP file if --link-type is specified. PCAP Packet Records otherwise.
 
 pcap-replay
 Arguments:
@@ -26,9 +30,18 @@ Arguments:
   receive reply in the PCAP format from the input and check the reply
 --store-data output(path):
   store user data collected by RMAP Read Transactions in the PCAP format
+Input:
+PCAP file
 
 pcap-store
 Arguments:
 --link-type:
   either spp (Space Packet Protocol), spw (SpaceWire), and diosatlm (DIOSA Telemetry).
+Input:
+PCAP Packet Records.
+Output:
+PCAP file.
 
+pcap-rmap-target:
+Input:
+PCAP Packet Records.

@@ -114,6 +114,8 @@ uint32_t pcapnc_network_decode_uint32(void *ptr){
 
 int pcap_file::read_nohead(FILE *input){
   this->rp = input;
+  this->p2n = 1;   
+  this->exec_bswap = 1; 
   return 0;
 }
 

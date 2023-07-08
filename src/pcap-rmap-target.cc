@@ -98,7 +98,7 @@ int main(int argc, char *argv[])
 
   pcap_file ip;
 
-  const int i_ret = ip.read_head(stdin); if ( i_ret ) return i_ret;
+  const int i_ret = ip.read_nohead(stdin); if ( i_ret ) return i_ret;
 
   ////
 

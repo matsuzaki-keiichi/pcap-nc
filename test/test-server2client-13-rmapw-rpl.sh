@@ -7,15 +7,16 @@
 mkdir -p outdir
 
 CHAN='--config=sample.json --channel=channel2' # RMAP Write Command with Acknowledge
-PCAPNC='../bin/pcap-nc'
 
+PCAPNC='../bin/pcap-nc'
+NC='stdbuf -i 0 -o 0 nc -w 10'
 OPTSEND='--original-time --interval=0.001 --before=2'
 OPTSERV='-l 14800'
-OPTCLNT='127.0.0.1 14800 --no-stdin'
+OPTCLNT='127.0.0.1 14800'
 
 echo starting server
 $PCAPNC $OPTSERV $OPTSEND $CHAN < test-spp.pcap >/dev/null &
 
 sleep 1
 echo starting client
-$PCAPNC $OPTCLNT --link-type=spw | ../bin/pcap-rmap-target $CHAN | ../bin/pcap-store --link-type=spw >outdir/test-rpl-out.pcap
+$NC $OPTCLNT | ../bin/pcap-rmap-target $CHAN | ../bin/pcap-store --link-type=spw >outdir/test-rpl-out.pcap
