@@ -28,10 +28,6 @@
 #define debug_fprintf
 #endif
 
-#define PCAP_HEADER_SIZE    24
-#define PACKET_HEADER_SIZE  16
-#define PACKET_DATA_MAX_SIZE 0x10006
-
 #define MAGIC_NUMBER_USEC   0xA1B2C3D4
 #define MAGIC_NUMBER_NSEC   0xA1B23C4D
 #define PCAP_MAJOR_VERSION   2
@@ -75,8 +71,6 @@ FILE *rp = NULL;
 
 int main(int argc, char *argv[])
 {
-  pcapnc_unset_stdbuf();
-
   //// parse options
   
   int option_error = 0;
@@ -109,6 +103,9 @@ int main(int argc, char *argv[])
     // TODO fix tentative implementation.
   }
 
+  pcap_file wp;
+  const int w_ret = wp.write_nohead(stdout); if ( w_ret ) return w_ret;
+
   pcap_file lp;
   if ( param_replyfile != ""  ){
     const char *filename = param_replyfile.c_str();
@@ -117,7 +114,7 @@ int main(int argc, char *argv[])
   }
   pcap_file sp;
   if ( param_storefile != ""  ){
-    const uint8_t linktype = 0x94; // SpacePacket
+    const uint8_t linktype = 0x94; // Assume SpacePacket
     const int r_ret = sp.write_head(param_storefile.c_str(), linktype); if ( r_ret ) return r_ret;
     store_rmap_read = 1;
   }
@@ -134,7 +131,6 @@ int main(int argc, char *argv[])
   ////
 
   pcap_file ip;
-
   const int i_ret = ip.read_head(stdin); if ( i_ret ) return i_ret;
 
   ////
@@ -215,7 +211,8 @@ int main(int argc, char *argv[])
     prev_time = curr_time;
     debug_fprintf(stderr, "curr_time=%f\n", curr_time);
 
-    ret = pcapnc_fwrite(trans_buf, 1, PACKET_HEADER_SIZE+cmdlen, stdout);
+    const size_t trans_len = PACKET_HEADER_SIZE + cmdlen;
+    ret = wp.write(trans_buf, trans_len);
 
     if ( use_rmap_reply ) {
       // reuse - input_buf      
@@ -240,13 +237,16 @@ int main(int argc, char *argv[])
       if ( !rmapc.is_write_channel() && store_rmap_read ){
         // Read Channel
         uint8_t outpt_buf[999];
+        size_t  outpt_len = sizeof(outpt_buf);
 
         memcpy(outpt_buf, input_buf, PACKET_HEADER_SIZE - 8);
         pcapnc_network_encode_uint32(outpt_buf+ 8, outlen);
         pcapnc_network_encode_uint32(outpt_buf+12, outlen);
         memcpy(outpt_buf+PACKET_HEADER_SIZE, outbuf, outlen);
 
-        ret = sp.write(outpt_buf, PACKET_HEADER_SIZE+outlen);        
+        outpt_len = PACKET_HEADER_SIZE + outlen;
+
+        ret = sp.write(outpt_buf, outpt_len);        
       }
     }
   }

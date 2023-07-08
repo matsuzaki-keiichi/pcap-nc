@@ -44,8 +44,6 @@ static int use_rmaprd_rpl   = 0;
 
 int main(int argc, char *argv[])
 {
-  pcapnc_unset_stdbuf();
-
   //// parse options
   
   int option_error    = 0;
@@ -74,6 +72,11 @@ int main(int argc, char *argv[])
     // TODO fix tentative implementation.
   }
 
+  //// setup input/output files
+
+  pcap_file ip; const int i_ret = ip.read_nohead(stdin);   if ( i_ret ) return i_ret;
+  pcap_file op; const int o_ret = op.write_nohead(stdout); if ( o_ret ) return o_ret;
+
   pcap_file lp;
   if ( param_send_filename != ""  ){
     const int r_ret = lp.read_head(param_send_filename.c_str()); if ( r_ret ) return r_ret;
@@ -90,64 +93,27 @@ int main(int argc, char *argv[])
   ////
     
   static uint8_t input_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
-  static uint8_t outpt_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
-  size_t         outpt_len;
-
-#if 0
-  static uint8_t output_pcap_header[PCAP_HEADER_SIZE] = {
-    0xA1, 0xB2, 0x3C, 0x4D, // Magic Number Nano Sec
-    0x00, 0x02, 0x00, 0x04, // Major Version, Minor Version
-    0x00, 0x00, 0x00, 0x09, // Time Zone
-    0x00, 0x00, 0x00, 0x00, // Sigfig
-    0x00, 0x01, 0x00, 0x12, // Scap Len
-    0x00, 0x00, 0x00, 0x95  // Link Type (0x95=149: DLT_USER2 = SpaceWire)
-  };
-#endif
 
   ssize_t ret;
-
-  ////
-
-  pcap_file ip;
-
-  const int i_ret = ip.read_nohead(stdin); if ( i_ret ) return i_ret;
-
-  ////
 
   class rmap_channel rmapc;
   if ( use_rmap_channel ) {
     rmapc.read_json(param_config.c_str(), param_channel.c_str());
   }
 
-#if 0
-  uint8_t linktype;
-  if ( use_rmap_channel && rmapc.has_responces() ) {
-    linktype = 0x95; // SpaceWire
-  } else {
-    linktype = 0x94; // SpacePacket
-  }
-  output_pcap_header[23] = linktype;
-
-  ret = pcapnc_fwrite(output_pcap_header, 1, PCAP_HEADER_SIZE, stdout);
-  if ( ret < PCAP_HEADER_SIZE ) {
-    pcapnc_logerr(PROGNAME "Write Error (PCAP Header).\n");
-    return ERROR_5;
-  }
-#endif  
-
   while(1){
     ret = ip.read_packet_header(input_buf, sizeof(input_buf), PROGNAME, "input"); if ( ret > 0 ) return ret; if ( ret < 0 ) return 0;
     ret = ip.read_packet_data(input_buf, PROGNAME, "input"); if ( ret > 0 ) return ret;
 
     if ( !use_rmap_channel ) {
-      ret = pcapnc_fwrite(input_buf,  1, PACKET_HEADER_SIZE+ip.caplen, stdout);
+      const size_t input_len = PACKET_HEADER_SIZE+ip.caplen;
+      ret = op.write(input_buf, input_len);
     } else {
 
       // simulate network
       const size_t num_path_address = rmap_num_path_address(input_buf + PACKET_HEADER_SIZE, ip.caplen);
       const uint8_t *rcvbuf = input_buf + PACKET_HEADER_SIZE + num_path_address; 
       size_t rcvlen = ((size_t) ip.caplen) - num_path_address;
-      size_t outlen;
 
       // generate output
       if ( rmapc.has_responces() ) {
@@ -159,44 +125,24 @@ int main(int argc, char *argv[])
           rmapc.generate_write_reply(rcvbuf, rcvlen, rplbuf, rpllen);
         } else {
           // generate RMAP READ Reply
-          uint8_t inpu2_buf[999];
-          
-          ret = lp.read_packet_header(inpu2_buf, sizeof(inpu2_buf), PROGNAME, "input"); if ( ret > 0 ) return ret; if ( ret < 0 ) return 0;
-          ret = lp.read_packet_data(inpu2_buf, PROGNAME, "input"); if ( ret > 0 ) return ret;
-          uint8_t *inpbuf  = inpu2_buf  + PACKET_HEADER_SIZE;
+          static uint8_t inpu2_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
+        
+          ret = lp.read_packet_header(inpu2_buf, sizeof(inpu2_buf), PROGNAME, "send data"); if ( ret > 0 ) return ret; if ( ret < 0 ) return 0;
+          ret = lp.read_packet_data(inpu2_buf, PROGNAME, "send data"); if ( ret > 0 ) return ret;
+          uint8_t     *inpbuf = inpu2_buf  + PACKET_HEADER_SIZE;
           const size_t inplen = lp.caplen;
 
           rmapc.generate_read_reply(inpbuf, inplen, rcvbuf, rcvlen, rplbuf, rpllen);
         }
-        memcpy(outpt_buf+PACKET_HEADER_SIZE, rplbuf, rpllen);
-        outlen = rpllen;
-
-        pcapnc_network_encode_uint32(outpt_buf+ 0, ip.coarse_time);
-        pcapnc_network_encode_uint32(outpt_buf+ 4, ip.nanosec);
-        pcapnc_network_encode_uint32(outpt_buf+ 8, outlen);
-        pcapnc_network_encode_uint32(outpt_buf+12, outlen);
-
-        outpt_len = PACKET_HEADER_SIZE + outlen;
-        ret = pcapnc_fwrite(outpt_buf, 1, outpt_len, stdout);
+        ret = op.write_packet_record(ip.coarse_time, ip.nanosec, rplbuf, rpllen, PROGNAME, "output");
         // TODO implement error check
       }
 
-      // reuse outpt_buf
-
       if ( rmapc.is_write_channel() && store_rmap_write ){
-
         const uint8_t *outbuf; 
-
+        size_t outlen;
         rmapc.validate_command(rcvbuf, rcvlen, outbuf, outlen); // extract Service Data Unit (e.g. Space Packet)
-        memcpy(outpt_buf+PACKET_HEADER_SIZE, outbuf, outlen);
-
-        pcapnc_network_encode_uint32(outpt_buf+ 0, ip.coarse_time);
-        pcapnc_network_encode_uint32(outpt_buf+ 4, ip.nanosec);
-        pcapnc_network_encode_uint32(outpt_buf+ 8, outlen);
-        pcapnc_network_encode_uint32(outpt_buf+12, outlen);
-
-        outpt_len = PACKET_HEADER_SIZE + outlen;
-        ret = sp.write(outpt_buf, outpt_len);
+        ret = sp.write_packet_record(ip.coarse_time, ip.nanosec, outbuf, outlen, PROGNAME, "store_data");
         // TODO implement error check
       } 
     }

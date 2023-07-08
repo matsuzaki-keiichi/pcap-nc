@@ -9,6 +9,8 @@
 // ntohl
 #include <byteswap.h>
 // bswap_32 (gcc)
+#include <string.h>
+// memcpy
 #include <stdio.h>
 // setvbuf
 
@@ -16,15 +18,6 @@
 
 #define READ_RETRY  1 // sec
 #define WRITE_RETRY 1 // sec
-
-void pcapnc_unset_stdbuf(){
-  int ret;
-  ret = setvbuf(stdin,  NULL, _IONBF, 0);
-  if ( ret != 0 ) pcapnc_logerr("Failed to Unset stdin buffer.\n");
-
-  ret = setvbuf(stdout, NULL, _IONBF, 0);
-  if ( ret != 0 ) pcapnc_logerr("Failed to Unset stdout buffer.\n");
-}
 
 size_t pcap_file::read(void *buf, size_t nmemb){
   size_t remaining_nmemb = nmemb;
@@ -63,26 +56,6 @@ size_t pcap_file::write(const void *buf, size_t nmemb){
   return nmemb - remaining_nmemb;
 }
 
-size_t pcapnc_fwrite(const void *buf, size_t size, size_t nmemb, FILE *fp){
-  size_t remaining_nmemb = nmemb;
-  ssize_t ret;
-
-  while ( remaining_nmemb > 0 ) {
-    // debug_fprintf(stderr, "remaining_nmemb=%zu\n", remaining_nmemb);
-	    
-    ret = fwrite(buf, size, remaining_nmemb, fp);
-
-    if ( ret > 0 ) {
-      remaining_nmemb -= ret;
-    } else {
-      if ( feof(fp) ) break;
-      if ( ferror(fp) ) break;
-      sleep(WRITE_RETRY);
-    }
-  }
-  return nmemb - remaining_nmemb;
-}
-
 uint32_t pcapnc_extract_uint32(int exec_bswap, void *ptr){
   const uint32_t value = * (uint32_t*) ptr;
   return (exec_bswap) ? bswap_32(value) : value;
@@ -111,17 +84,54 @@ uint32_t pcapnc_network_decode_uint32(void *ptr){
 #define ERROR_3 3
 #define ERROR_4 4
 #define ERROR_5 5
+#define ERROR_6 6
+#define ERROR_7 7
 
-int pcap_file::read_nohead(FILE *input){
-  this->rp = input;
+/**
+ * @return 0:success, othewise fail.
+*/
+
+int pcap_file::read_nohead(FILE *rp){
+  this->rp = rp;
   this->p2n = 1;   
   this->exec_bswap = 1; 
-  return 0;
+
+  const int ret = setvbuf(rp,  NULL, _IONBF, 0);
+  if ( ret != 0 ) pcapnc_logerr("Failed to Unset input buffer.\n");
+
+  return ret;
 }
 
-int pcap_file::read_head(FILE *input){
+/**
+ * @return 0:success, othewise fail.
+*/
 
-  this->rp = input;
+int pcap_file::read_nohead(const char *filename){
+  FILE *rp = fopen(filename, "r");
+  if ( rp == NULL ) {
+    pcapnc_logerr("Input file (%s) open failed.\n", filename);
+    return ERROR_5;
+  }
+
+  this->read_nohead(rp);
+  return 0;
+}  
+
+/**
+ * @return 0:success, othewise fail.
+*/
+
+int pcap_file::read_head(const char *filename){
+  return this->read_nohead(filename) || this->read_head(this->rp);    
+}
+
+/**
+ * @return 0:success, othewise fail.
+*/
+
+int pcap_file::read_head(FILE *rp){
+
+  this->read_nohead(rp);
 
   uint8_t inbuf[PCAP_HEADER_SIZE];
 
@@ -157,6 +167,20 @@ int pcap_file::read_head(FILE *input){
   return 0;
 }
 
+/**
+ * @return 0:success, othewise fail.
+*/
+
+int pcap_file::write_nohead(FILE *wp){
+  this->wp = wp;
+  this->p2n = 1;
+  this->exec_bswap = 0;
+
+  const int ret = setvbuf(wp,  NULL, _IONBF, 0);
+  if ( ret != 0 ) pcapnc_logerr("Failed to Unset output buffer.\n");
+  return ret;
+}
+
 static uint8_t output_pcap_header[PCAP_HEADER_SIZE] = {
   0xA1, 0xB2, 0x3C, 0x4D, // Magic Number Nano Sec
   0x00, 0x02, 0x00, 0x04, // Major Version, Minor Version
@@ -166,8 +190,25 @@ static uint8_t output_pcap_header[PCAP_HEADER_SIZE] = {
   0x00, 0x00, 0x00, 0x95  // Link Type (0x95=149: DLT_USER2 = SpaceWire)
 };
 
-int pcap_file::write_head(FILE *output, uint8_t linktype){
-  this->wp = output;
+/**
+ * @return 0:success, othewise fail.
+*/
+
+int pcap_file::write_head(const char *filename, uint8_t linktype){
+  FILE *wp = fopen(filename, "w");
+  if ( wp == NULL ) {
+    pcapnc_logerr("Output file (%s) open failed.\n", filename);
+    return ERROR_5;
+  }
+  return this->write_head(wp, linktype);    
+}
+
+/**
+ * @return 0:success, othewise fail.
+*/
+
+int pcap_file::write_head(FILE *wp, uint8_t linktype){
+  this->write_nohead(wp);
 
   output_pcap_header[23] = linktype;
  
@@ -178,40 +219,6 @@ int pcap_file::write_head(FILE *output, uint8_t linktype){
   }
   return 0;
 }
-
-int pcap_file::read_nohead(const char *filename){
-  FILE *rp = fopen(filename, "r");
-  if ( rp == NULL ) {
-    pcapnc_logerr("Input file (%s) open failed.\n", filename);
-    return ERROR_5;
-  }
-
-  const int ret = setvbuf(rp,  NULL, _IONBF, 0);
-  if ( ret != 0 ) pcapnc_logerr("Failed to Unset input buffer.\n");
-
-  return pcap_file::read_nohead(rp);    
-}  
-
-int pcap_file::read_head(const char *filename){
-  return pcap_file::read_nohead(filename) || pcap_file::read_head(this->rp);    
-}
-
-int pcap_file::write_head(const char *filename, uint8_t linktype){
-  FILE *wp = fopen(filename, "w");
-  if ( wp == NULL ) {
-    pcapnc_logerr("Output file (%s) open failed.\n", filename);
-    return ERROR_5;
-  }
-
-  const int ret = setvbuf(wp,  NULL, _IONBF, 0);
-  if ( ret != 0 ) pcapnc_logerr("Failed to Unset output buffer.\n");
-
-  return pcap_file::write_head(wp, linktype);    
-}
-
-#define ERROR_5 5
-#define ERROR_6 6
-#define ERROR_7 7
 
 #define PACKET_HEADER_SIZE  16
 // TODO eliminate duplicated definition
@@ -244,6 +251,20 @@ int pcap_file::read_packet_data(uint8_t record_buffer[], const char *prog_name, 
     return ERROR_7;
   }
   return 0;
+}
+
+static uint8_t outpt_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
+
+int pcap_file::write_packet_record(uint32_t coarse_time, uint32_t nanosec, const uint8_t outbuf[], size_t outlen, const char *prog_name, const char *source_name){
+
+  pcapnc_network_encode_uint32(outpt_buf+ 0, coarse_time);
+  pcapnc_network_encode_uint32(outpt_buf+ 4, nanosec);
+  pcapnc_network_encode_uint32(outpt_buf+ 8, outlen);
+  pcapnc_network_encode_uint32(outpt_buf+12, outlen);
+  memcpy(outpt_buf+PACKET_HEADER_SIZE, outbuf, outlen);
+  
+  const size_t outpt_len = PACKET_HEADER_SIZE + outlen;
+  return this->write(outpt_buf, outpt_len);
 }
 
 uint16_t pcap_file::extract_uint16(void *ptr){
