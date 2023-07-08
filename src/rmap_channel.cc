@@ -164,17 +164,6 @@ void rmap_channel::read_json(const char *file_name, const char *channel_name)
     }
 }
 
-#define RMAP_INST_WRITE  0x20
-#define RMAP_INST_REPLY  0x08
-
-int rmap_channel::is_write_channel() const {
-    return this->instruction & RMAP_INST_WRITE;    
-}
-int rmap_channel::has_responces() const {
-    return this->instruction & RMAP_INST_REPLY;    
-}
-
-
 #define RMAP_PROTOCOL_ID 0x01
 
 /**
@@ -436,6 +425,7 @@ void rmap_channel::validate_command(const uint8_t rcvbuf[], size_t rcvlen, const
     const size_t   outlen1 = (((size_t) cargo[12+n]) << 16)
         +                    (((size_t) cargo[13+n]) <<  8) 
         +                    (((size_t) cargo[14+n]) <<  0);
+
     if ( !this->is_write_channel() ) {
         outbuf = NULL;
         outlen = 0;

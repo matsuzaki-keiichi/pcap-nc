@@ -154,43 +154,21 @@ int main(int argc, char *argv[])
 
     // generated output (ending conversion is performed if needed)
 
-    if (!param_original_time) {
-      struct timeval tv;
-      
-      const int iret = gettimeofday(&tv, NULL);
+    uint32_t my_coarse_time = ip.coarse_time;
+    uint32_t my_nanosec     = ip.nanosec;
 
+    if (!param_original_time) {
+      struct timeval tv;      
+      const int iret = gettimeofday(&tv, NULL);
       if ( iret == 0 ) {
-      	const uint32_t now_coarse_time =          (uint32_t)  tv.tv_sec;
-      	const uint32_t now_nanosec     =   1000 * (uint32_t)  tv.tv_usec;	
-      	pcapnc_network_encode_uint32(trans_buf+ 0, now_coarse_time);
-      	pcapnc_network_encode_uint32(trans_buf+ 4, now_nanosec);
+      	my_coarse_time =        (uint32_t) tv.tv_sec;
+      	my_nanosec     = 1000 * (uint32_t) tv.tv_usec;	
       } else {
         // TODO implement error handling
       }
-    } else {
-      pcapnc_network_encode_uint32(trans_buf+ 0, ip.coarse_time);
-      pcapnc_network_encode_uint32(trans_buf+ 4, ip.nanosec);
     }
 
-    uint8_t *inpbuf = input_buf + PACKET_HEADER_SIZE;
-    uint8_t *cmdbuf = trans_buf + PACKET_HEADER_SIZE;
-    size_t   cmdlen = PACKET_DATA_MAX_SIZE;
-    if ( use_rmap_channel ) {
-      if ( rmapc.is_write_channel() ){
-        const size_t inplen  = ip.caplen;
-        rmapc.generate_write_command(inpbuf, inplen, cmdbuf, cmdlen);
-//fprintf(stderr,"write channel\n");        
-      } else {
-//fprintf(stderr,"read channel\n");        
-        rmapc.generate_read_command(cmdbuf, cmdlen);
-      }
-    } else {
-      memcpy(cmdbuf, inpbuf, ip.caplen);
-      cmdlen = ip.caplen;
-    }
-
-    pcapnc_network_encode_uint32(trans_buf+ 8, cmdlen);
-    pcapnc_network_encode_uint32(trans_buf+12, cmdlen);
+    ////
 
     double curr_time = ip.coarse_time + ip.nanosec * 1e-9;
     if ( prev_time < 0 ) {
@@ -209,17 +187,31 @@ int main(int argc, char *argv[])
       }
     }
     prev_time = curr_time;
-    debug_fprintf(stderr, "curr_time=%f\n", curr_time);
 
-    const size_t trans_len = PACKET_HEADER_SIZE + cmdlen;
-    ret = wp.write(trans_buf, trans_len);
+    ////
+
+    uint8_t     *inpbuf = input_buf + PACKET_HEADER_SIZE;
+    const size_t inplen = ip.caplen;
+    if ( use_rmap_channel ) {
+      uint8_t   *cmdbuf = trans_buf + PACKET_HEADER_SIZE;
+      size_t     cmdlen = PACKET_DATA_MAX_SIZE;
+      if ( rmapc.is_write_channel() ){
+        rmapc.generate_write_command(inpbuf, inplen, cmdbuf, cmdlen);
+      } else {
+        rmapc.generate_read_command(                 cmdbuf, cmdlen);
+      }
+      ret = wp.write_packet_record(my_coarse_time, my_nanosec, trans_buf, NULL, cmdlen, PROGNAME, "output");
+    } else {
+      ret = wp.write_packet_record(my_coarse_time, my_nanosec, NULL,    inpbuf, inplen, PROGNAME, "output");
+    }
+    // TODO implement error check
 
     if ( use_rmap_reply ) {
       // reuse - input_buf      
-      ret = lp.read_packet_header(input_buf, sizeof(input_buf), PROGNAME, "input"); 
+      ret = lp.read_packet_header(input_buf, sizeof(input_buf), PROGNAME, "(dummy) input"); 
       if ( ret > 0 ) return ret; 
       if ( ret < 0 ) { s3sim_sleep(param_after_wtime); return 0; }
-      ret = lp.read_packet_data(input_buf, PROGNAME, "input"); 
+      ret = lp.read_packet_data(input_buf, PROGNAME, "(dummy) input"); 
       if ( ret > 0 ) return ret;
 
       // simulate network
@@ -234,19 +226,9 @@ int main(int argc, char *argv[])
       size_t outlen;
       rmapc.validate_reply(retnbuf, retnlen, outbuf, outlen);
 
-      if ( !rmapc.is_write_channel() && store_rmap_read ){
-        // Read Channel
-        uint8_t outpt_buf[999];
-        size_t  outpt_len = sizeof(outpt_buf);
-
-        memcpy(outpt_buf, input_buf, PACKET_HEADER_SIZE - 8);
-        pcapnc_network_encode_uint32(outpt_buf+ 8, outlen);
-        pcapnc_network_encode_uint32(outpt_buf+12, outlen);
-        memcpy(outpt_buf+PACKET_HEADER_SIZE, outbuf, outlen);
-
-        outpt_len = PACKET_HEADER_SIZE + outlen;
-
-        ret = sp.write(outpt_buf, outpt_len);        
+      if ( rmapc.is_read_channel() && store_rmap_read ){
+        ret = sp.write_packet_record(my_coarse_time, my_nanosec, outbuf, outlen, PROGNAME, "store_data");
+        // TODO implement error check
       }
     }
   }

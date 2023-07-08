@@ -4,14 +4,18 @@
 
 #define RMAP_MAX_NUM_PATH_ADDRESS 12
 
+#define RMAP_INST_WRITE  0x20
+#define RMAP_INST_REPLY  0x08
+
 class rmap_channel {
   public:
     rmap_channel();
 
     void read_json(const char *file_name, const char *channel_name);
 
-    int is_write_channel() const;
-    int has_responces() const;
+    inline int is_read_channel()  const { return ! this->is_write_channel(); }
+    inline int is_write_channel() const { return this->instruction & RMAP_INST_WRITE; }
+    inline int has_responces()    const { return this->instruction & RMAP_INST_REPLY; }
 
 //                                 INPUT                                            OUTPUT
   private:

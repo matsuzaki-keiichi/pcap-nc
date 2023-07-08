@@ -253,18 +253,36 @@ int pcap_file::read_packet_data(uint8_t record_buffer[], const char *prog_name, 
   return 0;
 }
 
-static uint8_t outpt_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
+static uint8_t inner_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
 
-int pcap_file::write_packet_record(uint32_t coarse_time, uint32_t nanosec, const uint8_t outbuf[], size_t outlen, const char *prog_name, const char *source_name){
+/**
+  @param coarse_time [in] the value of the coarse time field in the Packet Header
+  @param nanosec     [in] the value of the nanosec field in the Packet Header
+  @param outpt_buf   [in/out]
+  Note: if this parameter is not NULL, Packet Data field in outpt_buf shall be set by user.
+  Note: Packet Header in outpt_buf is updated by this method.
+  @param outbuf      [in] content of Packet Data field
+  Note: if this parameter is not NULL, Packet Data field is constructed by this method.
+  Note: either outpt_bur or out_buf shall be NULL
+  @param outlen      [in] length of Packet Data field
+  @param prog_name   [in] might be used in Error Messages
+  @param source_name [in] might be used in Error Messages
+*/
+int pcap_file::write_packet_record(uint32_t coarse_time, uint32_t nanosec, uint8_t outpt_buf[], const uint8_t outbuf[], size_t outlen, const char *prog_name, const char *source_name){
 
-  pcapnc_network_encode_uint32(outpt_buf+ 0, coarse_time);
-  pcapnc_network_encode_uint32(outpt_buf+ 4, nanosec);
-  pcapnc_network_encode_uint32(outpt_buf+ 8, outlen);
-  pcapnc_network_encode_uint32(outpt_buf+12, outlen);
-  memcpy(outpt_buf+PACKET_HEADER_SIZE, outbuf, outlen);
-  
-  const size_t outpt_len = PACKET_HEADER_SIZE + outlen;
-  return this->write(outpt_buf, outpt_len);
+  uint8_t *const trans_buf = (outpt_buf == NULL) ? inner_buf : outpt_buf;
+
+  pcapnc_network_encode_uint32(trans_buf+ 0, coarse_time);
+  pcapnc_network_encode_uint32(trans_buf+ 4, nanosec);
+  pcapnc_network_encode_uint32(trans_buf+ 8, outlen);
+  pcapnc_network_encode_uint32(trans_buf+12, outlen);
+
+  if (outpt_buf == NULL) {
+    memcpy(trans_buf+PACKET_HEADER_SIZE, outbuf, outlen);
+  }
+
+  const size_t trans_len = PACKET_HEADER_SIZE + outlen;
+  return this->write(trans_buf, trans_len);
 }
 
 uint16_t pcap_file::extract_uint16(void *ptr){

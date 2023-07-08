@@ -36,7 +36,6 @@ static std::string param_channel       = "";
 static std::string param_send_filename = ""; 
 static std::string param_storefile     = ""; 
 
-static int use_rmap_channel = 0;
 static int use_rmaprd_rpl   = 0;
 
 #define PROGNAME "pcap-rmap-target: "
@@ -67,8 +66,8 @@ int main(int argc, char *argv[])
     return 1;
   }
   
-  if ( param_config != "" && param_channel != "" ){
-    use_rmap_channel = 1;
+  if ( param_config == "" && param_channel == "" ){
+    return 2;
     // TODO fix tentative implementation.
   }
 
@@ -97,55 +96,47 @@ int main(int argc, char *argv[])
   ssize_t ret;
 
   class rmap_channel rmapc;
-  if ( use_rmap_channel ) {
-    rmapc.read_json(param_config.c_str(), param_channel.c_str());
-  }
+  rmapc.read_json(param_config.c_str(), param_channel.c_str());
 
   while(1){
     ret = ip.read_packet_header(input_buf, sizeof(input_buf), PROGNAME, "input"); if ( ret > 0 ) return ret; if ( ret < 0 ) return 0;
     ret = ip.read_packet_data(input_buf, PROGNAME, "input"); if ( ret > 0 ) return ret;
 
-    if ( !use_rmap_channel ) {
-      const size_t input_len = PACKET_HEADER_SIZE+ip.caplen;
-      ret = op.write(input_buf, input_len);
-    } else {
+    // simulate network
+    const size_t num_path_address = rmap_num_path_address(input_buf + PACKET_HEADER_SIZE, ip.caplen);
+    const uint8_t *rcvbuf = input_buf + PACKET_HEADER_SIZE + num_path_address; 
+    size_t rcvlen = ((size_t) ip.caplen) - num_path_address;
 
-      // simulate network
-      const size_t num_path_address = rmap_num_path_address(input_buf + PACKET_HEADER_SIZE, ip.caplen);
-      const uint8_t *rcvbuf = input_buf + PACKET_HEADER_SIZE + num_path_address; 
-      size_t rcvlen = ((size_t) ip.caplen) - num_path_address;
+    // generate output
+    if ( rmapc.has_responces() ) {
+      uint8_t rplbuf[999]; 
+      size_t  rpllen = sizeof(rplbuf);
 
-      // generate output
-      if ( rmapc.has_responces() ) {
-        uint8_t rplbuf[999]; 
-        size_t  rpllen = sizeof(rplbuf);
-
-        if ( !use_rmaprd_rpl ) {
-          // generate RMAP Write Reply
-          rmapc.generate_write_reply(rcvbuf, rcvlen, rplbuf, rpllen);
-        } else {
-          // generate RMAP READ Reply
-          static uint8_t inpu2_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
+      if ( !use_rmaprd_rpl ) {
+        // generate RMAP Write Reply
+        rmapc.generate_write_reply(rcvbuf, rcvlen, rplbuf, rpllen);
+      } else {
+        // generate RMAP READ Reply
+        static uint8_t inpu2_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
         
-          ret = lp.read_packet_header(inpu2_buf, sizeof(inpu2_buf), PROGNAME, "send data"); if ( ret > 0 ) return ret; if ( ret < 0 ) return 0;
-          ret = lp.read_packet_data(inpu2_buf, PROGNAME, "send data"); if ( ret > 0 ) return ret;
-          uint8_t     *inpbuf = inpu2_buf  + PACKET_HEADER_SIZE;
-          const size_t inplen = lp.caplen;
+        ret = lp.read_packet_header(inpu2_buf, sizeof(inpu2_buf), PROGNAME, "send data"); if ( ret > 0 ) return ret; if ( ret < 0 ) return 0;
+        ret = lp.read_packet_data(inpu2_buf, PROGNAME, "send data"); if ( ret > 0 ) return ret;
+        uint8_t     *inpbuf = inpu2_buf  + PACKET_HEADER_SIZE;
+        const size_t inplen = lp.caplen;
 
-          rmapc.generate_read_reply(inpbuf, inplen, rcvbuf, rcvlen, rplbuf, rpllen);
-        }
-        ret = op.write_packet_record(ip.coarse_time, ip.nanosec, rplbuf, rpllen, PROGNAME, "output");
-        // TODO implement error check
+        rmapc.generate_read_reply(inpbuf, inplen, rcvbuf, rcvlen, rplbuf, rpllen);
       }
-
-      if ( rmapc.is_write_channel() && store_rmap_write ){
-        const uint8_t *outbuf; 
-        size_t outlen;
-        rmapc.validate_command(rcvbuf, rcvlen, outbuf, outlen); // extract Service Data Unit (e.g. Space Packet)
-        ret = sp.write_packet_record(ip.coarse_time, ip.nanosec, outbuf, outlen, PROGNAME, "store_data");
-        // TODO implement error check
-      } 
+      ret = op.write_packet_record(ip.coarse_time, ip.nanosec, rplbuf, rpllen, PROGNAME, "output");
+      // TODO implement error check
     }
+
+    if ( rmapc.is_write_channel() && store_rmap_write ){
+      const uint8_t *outbuf; 
+      size_t outlen;
+      rmapc.validate_command(rcvbuf, rcvlen, outbuf, outlen); // extract Service Data Unit (e.g. Space Packet)
+      ret = sp.write_packet_record(ip.coarse_time, ip.nanosec, outbuf, outlen, PROGNAME, "store_data");
+      // TODO implement error check
+    } 
   }
   
   return 0;
