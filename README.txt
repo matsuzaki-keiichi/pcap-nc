@@ -48,6 +48,8 @@ PCAP file.
 pcap-rmap-target:
 --send-data output(path):
   input data for a RMAP Read Channel in the PCAP file format
+--store-data output(path):
+  store user data collected by RMAP Write Transactions in the PCAP format
 Input:
 RMAP Command Packets in PCAP Packet Records.
 Output:

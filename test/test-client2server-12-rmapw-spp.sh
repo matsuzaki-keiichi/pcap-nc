@@ -18,4 +18,4 @@ echo starting client
 $PCAPNC $OPTCLNT $OPTSEND $CHAN < test-spp.pcap &
 
 echo starting server
-$NC $OPTSERV | ../bin/pcap-rmap-target $CHAN | ../bin/pcap-store --link-type=spp >outdir/test-spp-out.pcap
+$NC $OPTSERV | ../bin/pcap-rmap-target $CHAN --store-data outdir/test-spp-out.pcap >/dev/null

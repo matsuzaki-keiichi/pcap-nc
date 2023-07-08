@@ -56,7 +56,7 @@ static struct option long_options[] = {
   {"interval",      required_argument, NULL, 'i'},
   {"original-time",       no_argument, NULL, 'o'},
   {"receive-reply", required_argument, NULL, 'r'},
-  {"store-data",    required_argument, NULL, 's'},
+  {"store-data",    required_argument, NULL, 't'},
   { NULL,                           0, NULL,  0 }
 };
 
@@ -96,7 +96,7 @@ int main(int argc, char *argv[])
     case 'i': param_interval_sec     = atof(optarg); if (param_interval_sec < 0.0) param_interval_sec = 0.0; break;
     case 'o': param_original_time    = 1; break;
     case 'r': param_replyfile = std::string(optarg); break;
-    case 's': param_storefile = std::string(optarg); break;
+    case 't': param_storefile = std::string(optarg); break;
     default: option_error=1; break;
     }
   }
