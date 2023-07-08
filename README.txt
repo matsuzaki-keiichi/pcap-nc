@@ -9,9 +9,9 @@ The combination of the argements for pcap-replay(*1), pcap-store and those for n
   check RMAP Write Reply
 *1: except for --receive-reply
 Input:
-PCAP file if --no-stdin is specified. PCAP Packet Records otherwise.
+PCAP Packet Records if --no-stdin is specified. PCAP file otherwise.
 Output:
-PCAP file if --link-type is specified. PCAP Packet Records otherwise.
+PCAP Packet Records if --link-type is not specified. PCAP file otherwise.
 
 pcap-replay
 Arguments:
@@ -32,6 +32,9 @@ Arguments:
   store user data collected by RMAP Read Transactions in the PCAP format
 Input:
 PCAP file
+Output:
+RMAP Command Packets in PCAP Packet Records if RMAP Write/Read Channel is specified.
+PCAP Packet Records in the input PCAP file otherwise.
 
 pcap-store
 Arguments:
@@ -43,5 +46,9 @@ Output:
 PCAP file.
 
 pcap-rmap-target:
+--send-data output(path):
+  input data for a RMAP Read Channel in the PCAP file format
 Input:
-PCAP Packet Records.
+RMAP Command Packets in PCAP Packet Records.
+Output:
+RMAP Reply Packets in PCAP Packet Records.
