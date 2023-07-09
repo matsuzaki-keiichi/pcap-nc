@@ -124,11 +124,9 @@ int main(int argc, char *argv[])
 
   while(1){
     ssize_t ret;
-    ret = ip.read_packet_header(input_buf, sizeof(input_buf)); // 0:success, -1:end of input, or ERROR_LOG_FATAL 
+    ret = ip.read_packet_record(input_buf, sizeof(input_buf)); // 0:success, -1:end of input, or ERROR_LOG_FATAL 
     if ( ret <  0 ) return 0; // end of input, withouog logging message
     if ( ret >  0 ) return ERROR_RUN; 
-    ret = ip.read_packet_data(input_buf); // 0:success or ERROR_LOG_FATAL.
-    if ( ret != 0 ) return ERROR_RUN;
 
     // simulate network
     const uint8_t *rcvbuf, *inpbuf = input_buf + PACKET_HEADER_SIZE;
@@ -147,11 +145,9 @@ int main(int argc, char *argv[])
         // generate RMAP READ Reply
         static uint8_t inpu2_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
         
-        ret = lp.read_packet_header(inpu2_buf, sizeof(inpu2_buf)); // 0:success, -1:end of input, or ERROR_LOG_FATAL
+        ret = lp.read_packet_record(inpu2_buf, sizeof(inpu2_buf)); // 0:success, -1:end of input, or ERROR_LOG_FATAL
         if ( ret <  0 ) return 0; // end of input, withouog logging message
         if ( ret >  0 ) return ERROR_RUN; 
-        ret = lp.read_packet_data(inpu2_buf); // 0:success or ERROR_LOG_FATAL.
-        if ( ret != 0 ) return ERROR_RUN;
         uint8_t     *inpbuf = inpu2_buf + PACKET_HEADER_SIZE;
         const size_t inplen = lp._caplen;
 

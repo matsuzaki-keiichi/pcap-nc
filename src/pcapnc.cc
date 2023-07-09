@@ -268,6 +268,19 @@ int pcapnc::read_packet_data(uint8_t record_buffer[]){
 static uint8_t inner_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
 
 /**
+  @param input_buf [in] buffer of record
+  @param input_len [in] size of recorde_buffer, should be equal or larger than the record size
+  @return 0:success, -1:end of input, or ERROR_LOG_FATAL.
+*/
+int pcapnc::read_packet_record(uint8_t input_buf[], size_t input_len){
+    int ret;
+    ret = this->read_packet_header(input_buf, input_len); // 0:success, -1:end of input, or ERROR_LOG_FATAL
+    if ( ret != 0 ) return ret;
+    ret = this->read_packet_data(input_buf); // 0:success or ERROR_LOG_FATAL.
+    return ret;
+}
+
+/**
   @param outpt_buf   [in/out]
   Note: if this parameter is not NULL, Packet Data field in outpt_buf shall be set by user.
   Note: Packet Header in outpt_buf is updated by this method.

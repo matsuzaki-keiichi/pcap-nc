@@ -177,15 +177,13 @@ int main(int argc, char *argv[])
     static uint8_t input_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
 
     int ret;
-    ret = ip.read_packet_header(input_buf, sizeof(input_buf)); // 0:success, -1:end of input, or ERROR_LOG_FATAL
+    ret = ip.read_packet_record(input_buf, sizeof(input_buf)); // 0:success, -1:end of input, or ERROR_LOG_FATAL
     if ( ret <  0 ) { // end of input, withouog logging message
       // handle option '--after wait_sec' @ test-?????2?????-{14,15,23,24}*
       s3sim_sleep(param_after_wtime); 
       return 0; 
     }
     if ( ret >  0 ) return ERROR_RUN;
-    ret = ip.read_packet_data(input_buf); // 0:success or ERROR_LOG_FATAL.
-    if ( ret != 0 ) return ERROR_RUN;
 
     //// time handling 
 
@@ -238,15 +236,13 @@ int main(int argc, char *argv[])
 
     if ( use_rmap_reply ) {
       // reuse - input_buf      
-      ret = lp.read_packet_header(input_buf, sizeof(input_buf)); // 0:success, -1:end of input, or ERROR_LOG_FATAL
+      ret = lp.read_packet_record(input_buf, sizeof(input_buf)); // 0:success, -1:end of input, or ERROR_LOG_FATAL
       if ( ret <  0 ) { // end of input, without logging message
         // handle option '--after wait_sec' @ test-?????2?????-{14,15,23,24}*
         s3sim_sleep(param_after_wtime); 
         return 0; 
       }
       if ( ret >  0 ) return ERROR_RUN; 
-      ret = lp.read_packet_data(input_buf); // 0:success or ERROR_LOG_FATAL.
-      if ( ret != 0 ) return ERROR_RUN;
 
       // simulate network
 
