@@ -13,6 +13,16 @@
 #include <unistd.h>
 // sleep
 
+static std::string _pcapnc_basename(const std::string& path) {
+    return path.substr(path.find_last_of('/') + 1);
+}
+
+std::string pcapnc::_progname;
+
+void pcapnc::init_class(char *argv0){
+  _progname = _pcapnc_basename(std::string(argv0));  
+}
+
 // #define DEBUG
 
 #define READ_RETRY  1 // sec
@@ -86,7 +96,7 @@ int pcapnc::read_nohead(FILE *rp){
 
   const int ret = setvbuf(rp, NULL, _IONBF, 0);
   if ( ret != 0 ) {
-    pcapnc_logerr("Failed to Unset input buffer.\n");
+    pcapnc_logerr("%s: Failed to Unset input buffer.\n", pcapnc::_progname.c_str());
     return ERROR_LOG_WARN;
   }
   return 0;
@@ -121,10 +131,10 @@ int pcapnc::read_head(FILE *rp){
 
   ssize_t ret = this->read(inbuf, PCAP_HEADER_SIZE);
   if ( ret == 0 ) {
-    pcapnc_logerr("No input (missing header).\n");
+    pcapnc_logerr("%s: No input (missing header).\n", pcapnc::_progname.c_str());
     return ERROR_LOG_FATAL;
   } else if ( ret < PCAP_HEADER_SIZE ) {
-    pcapnc_logerr("File size smaller than the PCAP Header.\n");
+    pcapnc_logerr("%s: File size smaller than the PCAP Header.\n", pcapnc::_progname.c_str());
     return ERROR_LOG_FATAL;
   }
 
@@ -136,7 +146,7 @@ int pcapnc::read_head(FILE *rp){
   else if ( magic_number      == MAGIC_NUMBER_NSEC ) { /* this->finetime_unit = 1e-9; */ this->p2n = 1;    this->exec_bswap = 0; }
   else if ( magic_number_swap == MAGIC_NUMBER_NSEC ) { /* this->finetime_unit = 1e-9; */ this->p2n = 1;    this->exec_bswap = 1; }
   else {
-    pcapnc_logerr("File is not a PCAP file (bad magic number).\n");
+    pcapnc_logerr("%s: File is not a PCAP file (bad magic number).\n", pcapnc::_progname.c_str());
     return ERROR_LOG_FATAL;
   }
 
@@ -144,8 +154,8 @@ int pcapnc::read_head(FILE *rp){
   const uint32_t minor_version = this->extract_uint16(inbuf+6);
 
   if ( major_version != PCAP_MAJOR_VERSION || minor_version != PCAP_MINOR_VERSION ) {
-    pcapnc_logerr("File is not a PCAP file (unexpected version number=%" PRId16 ".%" PRId16 ").\n",
-	    major_version, minor_version);
+    pcapnc_logerr("%s: File is not a PCAP file (unexpected version number=%" PRId16 ".%" PRId16 ", ).\n",
+	    pcapnc::_progname.c_str(), major_version, minor_version);
     return ERROR_LOG_FATAL;
   }
   return 0;
@@ -161,7 +171,7 @@ int pcapnc::write_nohead(FILE *wp){
 
   const int ret = setvbuf(wp,  NULL, _IONBF, 0);
   if ( ret != 0 ){
-    pcapnc_logerr("Failed to Unset output buffer.\n");
+    pcapnc_logerr("%s: Failed to Unset output buffer.\n", pcapnc::_progname.c_str());
     return ERROR_LOG_WARN;
   } 
   return 0;
@@ -195,7 +205,7 @@ int pcapnc::write_head(FILE *wp, uint8_t linktype){
  
   ssize_t ret = this->write(output_pcap_header, PCAP_HEADER_SIZE);
   if ( ret < PCAP_HEADER_SIZE ) {
-    pcapnc_logerr("Output error .\n");
+    pcapnc_logerr("%s: Output error .\n", pcapnc::_progname.c_str());
     return ERROR_LOG_FATAL;
   }
   return 0;
@@ -208,12 +218,12 @@ int pcapnc::write_head(FILE *wp, uint8_t linktype){
   @param source_name   [in] name of source  (might be used in the error logging)
   @return 0:success, -1:end of input, or ERROR_LOG_FATAL.
 */
-int pcapnc::read_packet_header(uint8_t record_buffer[], size_t buffer_size, const char *prog_name, const char *source_name){
+int pcapnc::read_packet_header(uint8_t record_buffer[], size_t buffer_size, const char *source_name){
   const size_t ret = this->read(record_buffer, PACKET_HEADER_SIZE);
   if        ( ret == 0 ) {
     return -1;
   } else if ( ret < PACKET_HEADER_SIZE ) {
-    pcapnc_logerr("%sUnexpected end of %s (partial packet header).\n", prog_name, source_name);
+    pcapnc_logerr("%s: Unexpected end of %s (partial packet header).\n", pcapnc::_progname.c_str(), source_name);
     return ERROR_LOG_FATAL;
   }
 
@@ -223,7 +233,7 @@ int pcapnc::read_packet_header(uint8_t record_buffer[], size_t buffer_size, cons
   this->orglen      = this->extract_uint32(record_buffer+12);
 
   if ( PACKET_HEADER_SIZE + caplen > buffer_size ) {
-    pcapnc_logerr("%sUnexpected packet header (caplen(=%" PRIx32 ") too long).\n", prog_name, this->caplen);
+    pcapnc_logerr("%s: Unexpected packet header (caplen(=%" PRIx32 ") too long).\n", pcapnc::_progname.c_str(), this->caplen);
     return ERROR_LOG_FATAL;
   }
   return 0;
@@ -235,10 +245,10 @@ int pcapnc::read_packet_header(uint8_t record_buffer[], size_t buffer_size, cons
   @param source_name   [in] name of source  (might be used in the error logging)
   @return 0:success or ERROR_LOG_FATAL.
 */
-int pcapnc::read_packet_data(uint8_t record_buffer[], const char *prog_name, const char *source_name){
+int pcapnc::read_packet_data(uint8_t record_buffer[], const char *source_name){
   const size_t ret = this->read(&(record_buffer[PACKET_HEADER_SIZE]), this->caplen);
   if ( ret < this->caplen ) {
-    pcapnc_logerr("%sUnexpected end of input (partial packet data).\n", prog_name);
+    pcapnc_logerr("%s: Unexpected end of input (partial packet data).\n", pcapnc::_progname.c_str());
     return ERROR_LOG_FATAL;
   }
   return 0;
@@ -260,7 +270,7 @@ static uint8_t inner_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
   @param source_name [in] might be used in Error Messages
   @return 0:success or ERROR_LOG_FATAL.
 */
-int pcapnc::write_packet_record(uint32_t coarse_time, uint32_t nanosec, uint8_t outpt_buf[], const uint8_t outbuf[], size_t outlen, const char *prog_name, const char *source_name){
+int pcapnc::write_packet_record(uint32_t coarse_time, uint32_t nanosec, uint8_t outpt_buf[], const uint8_t outbuf[], size_t outlen, const char *source_name){
 
   uint8_t *const trans_buf = (outpt_buf == NULL) ? inner_buf : outpt_buf;
 
@@ -276,7 +286,7 @@ int pcapnc::write_packet_record(uint32_t coarse_time, uint32_t nanosec, uint8_t 
   const size_t trans_len = PACKET_HEADER_SIZE + outlen;
   const size_t reslt_len = this->write(trans_buf, trans_len);
   if ( reslt_len != trans_len ) {
-    pcapnc_logerr("%sFails to output '%s' (partial packet data).\n", prog_name, source_name);
+    pcapnc_logerr("%s: Fails to output '%s' (partial packet data).\n", pcapnc::_progname.c_str(), source_name);
     return ERROR_LOG_FATAL;
   }
   return 0;

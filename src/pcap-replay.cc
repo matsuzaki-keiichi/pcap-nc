@@ -60,6 +60,8 @@ static struct option long_options[] = {
 int main(int argc, char *argv[])
 {
   //// parse options
+
+  pcapnc::init_class(argv[0]);
   
   int option_error = 0;
   while (1) {
@@ -177,14 +179,14 @@ int main(int argc, char *argv[])
     static uint8_t input_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
 
     int ret;
-    ret = ip.read_packet_header(input_buf, sizeof(input_buf), PROGNAME, "file"); // 0:success, -1:end of input, or ERROR_LOG_FATAL
+    ret = ip.read_packet_header(input_buf, sizeof(input_buf), "file"); // 0:success, -1:end of input, or ERROR_LOG_FATAL
     if ( ret <  0 ) { // end of input, withouog logging message
       // handle option '--after wait_sec' @ test-?????2?????-{14,15,23,24}*
       s3sim_sleep(param_after_wtime); 
       return 0; 
     }
     if ( ret >  0 ) return ERROR_RUN;
-    ret = ip.read_packet_data(input_buf, PROGNAME, "file"); // 0:success or ERROR_LOG_FATAL.
+    ret = ip.read_packet_data(input_buf, "file"); // 0:success or ERROR_LOG_FATAL.
     if ( ret != 0 ) return ERROR_RUN;
 
     //// time handling 
@@ -243,24 +245,24 @@ int main(int argc, char *argv[])
         // @ test-?????2?????-2*
         rmapc.generate_read_command(                 cmdbuf, cmdlen);
       }
-      ret = wp.write_packet_record(my_coarse_time, my_nanosec, trans_buf, NULL, cmdlen, PROGNAME, "output"); // 0:success or ERROR_LOG_FATAL.
+      ret = wp.write_packet_record(my_coarse_time, my_nanosec, trans_buf, NULL, cmdlen, "output"); // 0:success or ERROR_LOG_FATAL.
     } else {
       // @ test-?????2?????
       const size_t   inplen = ip.caplen;
-      ret = wp.write_packet_record(my_coarse_time, my_nanosec, input_buf, NULL, inplen, PROGNAME, "output"); // 0:success or ERROR_LOG_FATAL.
+      ret = wp.write_packet_record(my_coarse_time, my_nanosec, input_buf, NULL, inplen, "output"); // 0:success or ERROR_LOG_FATAL.
     }
     if ( ret != 0 ) return ERROR_RUN;
 
     if ( use_rmap_reply ) {
       // reuse - input_buf      
-      ret = lp.read_packet_header(input_buf, sizeof(input_buf), PROGNAME, "(dummy) input"); // 0:success, -1:end of input, or ERROR_LOG_FATAL
+      ret = lp.read_packet_header(input_buf, sizeof(input_buf), "(dummy) input"); // 0:success, -1:end of input, or ERROR_LOG_FATAL
       if ( ret <  0 ) { // end of input, without logging message
         // handle option '--after wait_sec' @ test-?????2?????-{14,15,23,24}*
         s3sim_sleep(param_after_wtime); 
         return 0; 
       }
       if ( ret >  0 ) return ERROR_RUN; 
-      ret = lp.read_packet_data(input_buf, PROGNAME, "(dummy) input"); // 0:success or ERROR_LOG_FATAL.
+      ret = lp.read_packet_data(input_buf, "(dummy) input"); // 0:success or ERROR_LOG_FATAL.
       if ( ret != 0 ) return ERROR_RUN;
 
       // simulate network
@@ -276,7 +278,7 @@ int main(int argc, char *argv[])
       rmapc.validate_reply(retbuf, retlen, outbuf, outlen); // extract Service Data Unit (e.g. Space Packet) for RMAP Read Reply
 
       if ( rmapc.is_read_channel() && store_rmap_read ){
-        ret = sp.write_packet_record(my_coarse_time, my_nanosec, outbuf, outlen, PROGNAME, "store_data"); // 0:success or ERROR_LOG_FATAL.
+        ret = sp.write_packet_record(my_coarse_time, my_nanosec, outbuf, outlen, "store_data"); // 0:success or ERROR_LOG_FATAL.
         if ( ret != 0 ) return ERROR_RUN;
       }
     }
