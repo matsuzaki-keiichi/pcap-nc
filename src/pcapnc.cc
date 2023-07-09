@@ -10,8 +10,12 @@
 // htonl, ntohl
 #include <byteswap.h>
 // bswap_32 (gcc)
+#include <sys/time.h>
+// gettimeofday
 #include <unistd.h>
 // sleep
+
+#include "s3sim.h"
 
 static std::string _pcapnc_basename(const std::string& path) {
     return path.substr(path.find_last_of('/') + 1);
@@ -33,13 +37,13 @@ size_t pcapnc::read(void *buf, size_t nmemb){
   ssize_t ret;
 
   while ( remaining_nmemb > 0 ) {	    
-    ret = fread(buf, 1, remaining_nmemb, this->rp);
+    ret = fread(buf, 1, remaining_nmemb, this->_rp);
 
     if ( ret > 0 ) {
       remaining_nmemb -= ret;
     } else {
-      if ( feof(this->rp) ) break;
-      if ( ferror(this->rp) ) break;
+      if ( feof(this->_rp) ) break;
+      if ( ferror(this->_rp) ) break;
       sleep(READ_RETRY);
     }
   }
@@ -51,12 +55,12 @@ size_t pcapnc::write(const void *buf, size_t nmemb){
   ssize_t ret;
   while ( remaining_nmemb > 0 ) {
     // debug_fprintf(stderr, "remaining_nmemb=%zu\n", remaining_nmemb);	    
-    ret = fwrite(buf, 1, remaining_nmemb, this->wp);
+    ret = fwrite(buf, 1, remaining_nmemb, this->_wp);
     if ( ret > 0 ) {
       remaining_nmemb -= ret;
     } else {
-      if ( feof(this->wp) ) break;
-      if ( ferror(this->wp) ) break;
+      if ( feof(this->_wp) ) break;
+      if ( ferror(this->_wp) ) break;
       sleep(WRITE_RETRY);
     }
   }
@@ -65,12 +69,12 @@ size_t pcapnc::write(const void *buf, size_t nmemb){
 
 uint16_t pcapnc::extract_uint16(void *ptr){
   const uint16_t value = * (uint16_t*) ptr;
-  return (this->exec_bswap) ? bswap_16(value) : value;
+  return (this->_exec_bswap) ? bswap_16(value) : value;
 }
 
 uint32_t pcapnc::extract_uint32(void *ptr){
   const uint32_t value = * (uint32_t*) ptr;
-  return (this->exec_bswap) ? bswap_32(value) : value;
+  return (this->_exec_bswap) ? bswap_32(value) : value;
 }
 
 static void pcapnc_network_encode_uint32(void *ptr, uint32_t value){
@@ -90,9 +94,9 @@ static void pcapnc_network_encode_uint32(void *ptr, uint32_t value){
   @return 0:success or ERROR_LOG_WARN.
 */
 int pcapnc::read_nohead(FILE *rp){
-  this->rp = rp;
-  this->p2n = 1;   
-  this->exec_bswap = 1; 
+  this->_rp = rp;
+  this->_p2n = 1;   
+  this->_exec_bswap = 1; 
 
   const int ret = setvbuf(rp, NULL, _IONBF, 0);
   if ( ret != 0 ) {
@@ -118,7 +122,7 @@ int pcapnc::read_nohead(const char *filename){
   @return 0:success, ERROR_PARAM, ERROR_LOG_FATAL, or ERROR_LOG_WARN.
 */
 int pcapnc::read_head(const char *filename){
-  return this->read_nohead(filename) || this->read_head(this->rp);    
+  return this->read_nohead(filename) || this->read_head(this->_rp);    
 }
 
 /**
@@ -142,10 +146,10 @@ int pcapnc::read_head(FILE *rp){
   const uint32_t magic_number = *(uint32_t*)&(inbuf[ 0]);
   const uint32_t magic_number_swap = bswap_32(magic_number);
   
-  if      ( magic_number      == MAGIC_NUMBER_USEC ) { /* this->finetime_unit = 1e-6; */ this->p2n = 1000; this->exec_bswap = 0; }
-  else if ( magic_number_swap == MAGIC_NUMBER_USEC ) { /* this->finetime_unit = 1e-6; */ this->p2n = 1000; this->exec_bswap = 1; }
-  else if ( magic_number      == MAGIC_NUMBER_NSEC ) { /* this->finetime_unit = 1e-9; */ this->p2n = 1;    this->exec_bswap = 0; }
-  else if ( magic_number_swap == MAGIC_NUMBER_NSEC ) { /* this->finetime_unit = 1e-9; */ this->p2n = 1;    this->exec_bswap = 1; }
+  if      ( magic_number      == MAGIC_NUMBER_USEC ) { /* this->finetime_unit = 1e-6; */ this->_p2n = 1000; this->_exec_bswap = 0; }
+  else if ( magic_number_swap == MAGIC_NUMBER_USEC ) { /* this->finetime_unit = 1e-6; */ this->_p2n = 1000; this->_exec_bswap = 1; }
+  else if ( magic_number      == MAGIC_NUMBER_NSEC ) { /* this->finetime_unit = 1e-9; */ this->_p2n = 1;    this->_exec_bswap = 0; }
+  else if ( magic_number_swap == MAGIC_NUMBER_NSEC ) { /* this->finetime_unit = 1e-9; */ this->_p2n = 1;    this->_exec_bswap = 1; }
   else {
     pcapnc_logerr("%s: File is not a PCAP file (bad magic number).\n", pcapnc::_progname.c_str());
     return ERROR_LOG_FATAL;
@@ -166,9 +170,9 @@ int pcapnc::read_head(FILE *rp){
   @return 0:success or ERROR_LOG_WARN.
 */
 int pcapnc::write_nohead(FILE *wp){
-  this->wp = wp;
-  this->p2n = 1;
-  this->exec_bswap = 0;
+  this->_wp = wp;
+  this->_p2n = 1;
+  this->_exec_bswap = 0;
 
   const int ret = setvbuf(wp,  NULL, _IONBF, 0);
   if ( ret != 0 ){
@@ -228,16 +232,22 @@ int pcapnc::read_packet_header(uint8_t record_buffer[], size_t buffer_size){
     return ERROR_LOG_FATAL;
   }
 
-  this->coarse_time = this->extract_uint32(record_buffer+ 0);
-  this->nanosec     = this->extract_uint32(record_buffer+ 4) * this->p2n;
-  this->caplen      = this->extract_uint32(record_buffer+ 8);
-  this->orglen      = this->extract_uint32(record_buffer+12);
+  this->_coarse_time = this->extract_uint32(record_buffer+ 0);
+  this->_nanosec     = this->extract_uint32(record_buffer+ 4) * this->_p2n;
+  this->_caplen      = this->extract_uint32(record_buffer+ 8);
+  this->_orglen      = this->extract_uint32(record_buffer+12);
 
-  if ( PACKET_HEADER_SIZE + caplen > buffer_size ) {
+  if ( PACKET_HEADER_SIZE + this->_caplen > buffer_size ) {
     pcapnc_logerr("%s: Unexpected packet header (caplen(=%" PRIx32 ") too long).\n", 
-                   pcapnc::_progname.c_str(), this->caplen);
+                   pcapnc::_progname.c_str(), this->_caplen);
     return ERROR_LOG_FATAL;
   }
+
+  if ( this->_time_mode != 0 ){
+    s3sim_coarse_time = this->_coarse_time;
+    s3sim_nanosec     = this->_nanosec;
+  }
+
   return 0;
 }
 
@@ -246,8 +256,8 @@ int pcapnc::read_packet_header(uint8_t record_buffer[], size_t buffer_size){
   @return 0:success or ERROR_LOG_FATAL.
 */
 int pcapnc::read_packet_data(uint8_t record_buffer[]){
-  const size_t ret = this->read(&(record_buffer[PACKET_HEADER_SIZE]), this->caplen);
-  if ( ret < this->caplen ) {
+  const size_t ret = this->read(&(record_buffer[PACKET_HEADER_SIZE]), this->_caplen);
+  if ( ret < this->_caplen ) {
     pcapnc_logerr("%s: Unexpected end of input (partial packet data).\n", 
                    pcapnc::_progname.c_str());
     return ERROR_LOG_FATAL;
@@ -258,8 +268,6 @@ int pcapnc::read_packet_data(uint8_t record_buffer[]){
 static uint8_t inner_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
 
 /**
-  @param coarse_time [in] the value of the coarse time field in the Packet Header
-  @param nanosec     [in] the value of the nanosec field in the Packet Header
   @param outpt_buf   [in/out]
   Note: if this parameter is not NULL, Packet Data field in outpt_buf shall be set by user.
   Note: Packet Header in outpt_buf is updated by this method.
@@ -269,7 +277,25 @@ static uint8_t inner_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
   @param outlen      [in] length of Packet Data field
   @return 0:success or ERROR_LOG_FATAL.
 */
-int pcapnc::write_packet_record(uint32_t coarse_time, uint32_t nanosec, uint8_t outpt_buf[], const uint8_t outbuf[], size_t outlen){
+int pcapnc::write_packet_record(uint8_t outpt_buf[], const uint8_t outbuf[], size_t outlen){
+  uint32_t coarse_time;
+  uint32_t nanosec;
+
+  if ( this->_time_mode == 0 ){
+    coarse_time = s3sim_coarse_time;
+    nanosec     = s3sim_nanosec;
+  } else {
+    struct timeval tv;      
+    const int iret = gettimeofday(&tv, NULL);
+    if ( iret == 0 ) {
+     	coarse_time =        (uint32_t) tv.tv_sec;
+     	nanosec     = 1000 * (uint32_t) tv.tv_usec;	
+    } else {
+      pcapnc_logerr("%s: error in gettime of day.\n", pcapnc::_progname.c_str()); // i.e. ERROR_LOG_WARN
+      coarse_time = s3sim_coarse_time;
+      nanosec     = s3sim_nanosec;
+    }
+  }
 
   uint8_t *const trans_buf = (outpt_buf == NULL) ? inner_buf : outpt_buf;
 
@@ -279,6 +305,11 @@ int pcapnc::write_packet_record(uint32_t coarse_time, uint32_t nanosec, uint8_t 
   pcapnc_network_encode_uint32(trans_buf+12, outlen);
 
   if (outpt_buf == NULL) {
+    if ( outlen > PACKET_DATA_MAX_SIZE ) {
+      pcapnc_logerr("%s: Too large packet size for %s (=0x%zu)).\n", 
+                     pcapnc::_progname.c_str(), this->_source_name, outlen);
+      return ERROR_LOG_FATAL;
+    }
     memcpy(trans_buf+PACKET_HEADER_SIZE, outbuf, outlen);
   }
 

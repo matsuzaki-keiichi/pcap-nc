@@ -10,8 +10,6 @@
 
 #include <unistd.h>
 // sleep
-#include <sys/time.h>
-// gettimeofday
 
 #include "rmap_channel.h"
 #include "pcapnc.h"
@@ -140,15 +138,15 @@ int main(int argc, char *argv[])
 
   ////
 
-  pcapnc ip("file");
+  pcapnc ip(1, "file");
   const int i_ret = ip.read_head(stdin); // 0:success, or ERROR LOG_FATAL.
   if ( i_ret != 0 ) return i_ret;
 
-  pcapnc wp("output");
+  pcapnc wp(!param_original_time, "output");
   const int w_ret = wp.write_nohead(stdout); // 0:success or ERROR_LOG_WARN.
   if ( w_ret != 0 ) return w_ret;
 
-  pcapnc lp("(dummy) input");
+  pcapnc lp(1, "reply");
   if ( param_reply_filename != ""  ){
     // @ test-?????2?????-24-rmapr-rpl3
     const char *filename = param_reply_filename.c_str();
@@ -159,7 +157,7 @@ int main(int argc, char *argv[])
     }
   }
 
-  pcapnc sp("store_data");
+  pcapnc sp(!param_original_time, "store_data");
   if ( param_store_filename != ""  ){
     // @ test-?????2?????-24-rmapr-rpl3
     const char *filename = param_store_filename.c_str();
@@ -191,22 +189,7 @@ int main(int argc, char *argv[])
 
     //// time handling 
 
-    uint32_t my_coarse_time = ip.coarse_time;
-    uint32_t my_nanosec     = ip.nanosec;
-
-    // handle option '--original_time'
-    if ( ! param_original_time ) {
-      struct timeval tv;      
-      const int iret = gettimeofday(&tv, NULL);
-      if ( iret == 0 ) {
-      	my_coarse_time =        (uint32_t) tv.tv_sec;
-      	my_nanosec     = 1000 * (uint32_t) tv.tv_usec;	
-      } else {
-        pcapnc_logerr(PROGNAME "error in gettime of day.\n"); // i.e. ERROR_LOG_WARN
-      }
-    } // @ test-?????2?????*
-
-    double curr_time = ip.coarse_time + ip.nanosec * 1e-9;
+    double curr_time = ip._coarse_time + ip._nanosec * 1e-9;
     if ( prev_time < 0 ) {
       // handle option '--before wait_sec'
       // @ test-server2client*
@@ -216,7 +199,7 @@ int main(int argc, char *argv[])
       // handle option '--interval interval_sec'
       if        ( param_interval_sec == 0.0 ) {
         // zero is specified for interval_sec, do not sleep
-      } else if ( param_interval_sec > 0.0 ) {
+      } else if ( param_interval_sec >  0.0 ) {
         // poisitive value is specified for interval_sec, constant iterval time
         // @ test-?????2?????*
       	s3sim_sleep(param_interval_sec); 
@@ -236,7 +219,7 @@ int main(int argc, char *argv[])
       size_t         cmdlen = PACKET_DATA_MAX_SIZE;
       if ( rmapc.is_write_channel() ){
         uint8_t     *inpbuf = input_buf + PACKET_HEADER_SIZE;
-        const size_t inplen = ip.caplen;
+        const size_t inplen = ip._caplen;
         // @ test-?????2?????-1*
         ret =
         rmapc.generate_write_command(inpbuf, inplen, cmdbuf, cmdlen); // 0:success or ERROR_LOG_FATAL.
@@ -245,11 +228,11 @@ int main(int argc, char *argv[])
         // @ test-?????2?????-2*
         rmapc.generate_read_command(                 cmdbuf, cmdlen);
       }
-      ret = wp.write_packet_record(my_coarse_time, my_nanosec, trans_buf, NULL, cmdlen); // 0:success or ERROR_LOG_FATAL.
+      ret = wp.write_packet_record(trans_buf, NULL, cmdlen); // 0:success or ERROR_LOG_FATAL.
     } else {
       // @ test-?????2?????
-      const size_t   inplen = ip.caplen;
-      ret = wp.write_packet_record(my_coarse_time, my_nanosec, input_buf, NULL, inplen); // 0:success or ERROR_LOG_FATAL.
+      const size_t   inplen = ip._caplen;
+      ret = wp.write_packet_record(input_buf, NULL, inplen); // 0:success or ERROR_LOG_FATAL.
     }
     if ( ret != 0 ) return ERROR_RUN;
 
@@ -268,7 +251,7 @@ int main(int argc, char *argv[])
       // simulate network
 
       const uint8_t *retbuf, *inpbuf = input_buf + PACKET_HEADER_SIZE;
-      size_t         retlen,  inplen = (size_t) lp.caplen;
+      size_t         retlen,  inplen = (size_t) lp._caplen;
       rmap_channel::remove_path_address(inpbuf, inplen, retbuf, retlen);
 
       // check returned packet is expected
@@ -278,7 +261,7 @@ int main(int argc, char *argv[])
       rmapc.validate_reply(retbuf, retlen, outbuf, outlen); // extract Service Data Unit (e.g. Space Packet) for RMAP Read Reply
 
       if ( rmapc.is_read_channel() && store_rmap_read ){
-        ret = sp.write_packet_record(my_coarse_time, my_nanosec, outbuf, outlen); // 0:success or ERROR_LOG_FATAL.
+        ret = sp.write_packet_record(outbuf, outlen); // 0:success or ERROR_LOG_FATAL.
         if ( ret != 0 ) return ERROR_RUN;
       }
     }

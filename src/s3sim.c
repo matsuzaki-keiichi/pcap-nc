@@ -28,15 +28,5 @@ double s3sim_sleep(double tdiff){
   return 0.0;
 }
 
-#if 0
-static double s3sim_time(){
-  struct timeval tv;
-
-  int iret = gettimeofday(&tv, NULL);
-
-  time_t      sec  = tv.tv_sec;
-  suseconds_t usec = tv.tv_usec;
-
-  return sec + usec * 1e-6;
-}
-#endif
+uint32_t s3sim_coarse_time = 0x00000000;
+uint32_t s3sim_nanosec     = 0x00000000;

@@ -12,7 +12,7 @@ pcap-store: pcap-store.bash
 pcap-replay: pcap-replay.cc s3sim.c pcapnc.o rmap_channel.o
 	c++ -Wall -I rapidjson/include -o $@ $^ -lm
 
-pcap-rmap-target: pcap-rmap-target.cc pcapnc.o rmap_channel.o
+pcap-rmap-target: pcap-rmap-target.cc s3sim.c pcapnc.o rmap_channel.o
 	c++ -Wall -I rapidjson/include -o $@ $^
 
 test-rmap: test-rmap.cc rmap_channel.o	
@@ -45,5 +45,5 @@ dist-clean: clean
 	
 clean:
 	rm -f *~ ${ALL} ${MED} *.o
-	
+
 
