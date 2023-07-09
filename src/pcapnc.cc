@@ -96,7 +96,8 @@ int pcapnc::read_nohead(FILE *rp){
 
   const int ret = setvbuf(rp, NULL, _IONBF, 0);
   if ( ret != 0 ) {
-    pcapnc_logerr("%s: Failed to Unset input buffer.\n", pcapnc::_progname.c_str());
+    pcapnc_logerr("%s: Failed to Unset %s buffer.\n", 
+                   pcapnc::_progname.c_str(), this->_source_name );
     return ERROR_LOG_WARN;
   }
   return 0;
@@ -171,7 +172,8 @@ int pcapnc::write_nohead(FILE *wp){
 
   const int ret = setvbuf(wp,  NULL, _IONBF, 0);
   if ( ret != 0 ){
-    pcapnc_logerr("%s: Failed to Unset output buffer.\n", pcapnc::_progname.c_str());
+    pcapnc_logerr("%s: Failed to Unset %s buffer.\n", 
+                   pcapnc::_progname.c_str(), this->_source_name );
     return ERROR_LOG_WARN;
   } 
   return 0;
@@ -214,16 +216,15 @@ int pcapnc::write_head(FILE *wp, uint8_t linktype){
 /**
   @param record_buffer [in] buffer of record
   @param buffer_size   [in] size of recorde_buffer, should be equal or larger than the record size
-  @param prog_name     [in] name of program (might be used in the error logging)
-  @param source_name   [in] name of source  (might be used in the error logging)
   @return 0:success, -1:end of input, or ERROR_LOG_FATAL.
 */
-int pcapnc::read_packet_header(uint8_t record_buffer[], size_t buffer_size, const char *source_name){
+int pcapnc::read_packet_header(uint8_t record_buffer[], size_t buffer_size){
   const size_t ret = this->read(record_buffer, PACKET_HEADER_SIZE);
   if        ( ret == 0 ) {
     return -1;
   } else if ( ret < PACKET_HEADER_SIZE ) {
-    pcapnc_logerr("%s: Unexpected end of %s (partial packet header).\n", pcapnc::_progname.c_str(), source_name);
+    pcapnc_logerr("%s: Unexpected end of %s (partial packet header).\n", 
+                   pcapnc::_progname.c_str(), this->_source_name);
     return ERROR_LOG_FATAL;
   }
 
@@ -233,7 +234,8 @@ int pcapnc::read_packet_header(uint8_t record_buffer[], size_t buffer_size, cons
   this->orglen      = this->extract_uint32(record_buffer+12);
 
   if ( PACKET_HEADER_SIZE + caplen > buffer_size ) {
-    pcapnc_logerr("%s: Unexpected packet header (caplen(=%" PRIx32 ") too long).\n", pcapnc::_progname.c_str(), this->caplen);
+    pcapnc_logerr("%s: Unexpected packet header (caplen(=%" PRIx32 ") too long).\n", 
+                   pcapnc::_progname.c_str(), this->caplen);
     return ERROR_LOG_FATAL;
   }
   return 0;
@@ -241,14 +243,13 @@ int pcapnc::read_packet_header(uint8_t record_buffer[], size_t buffer_size, cons
 
 /**
   @param record_buffer [in] buffer of record
-  @param prog_name     [in] name of program (might be used in the error logging)
-  @param source_name   [in] name of source  (might be used in the error logging)
   @return 0:success or ERROR_LOG_FATAL.
 */
-int pcapnc::read_packet_data(uint8_t record_buffer[], const char *source_name){
+int pcapnc::read_packet_data(uint8_t record_buffer[]){
   const size_t ret = this->read(&(record_buffer[PACKET_HEADER_SIZE]), this->caplen);
   if ( ret < this->caplen ) {
-    pcapnc_logerr("%s: Unexpected end of input (partial packet data).\n", pcapnc::_progname.c_str());
+    pcapnc_logerr("%s: Unexpected end of input (partial packet data).\n", 
+                   pcapnc::_progname.c_str());
     return ERROR_LOG_FATAL;
   }
   return 0;
@@ -266,11 +267,9 @@ static uint8_t inner_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
   Note: if this parameter is not NULL, Packet Data field is constructed by this method.
   Note: either outpt_bur or out_buf shall be NULL
   @param outlen      [in] length of Packet Data field
-  @param prog_name   [in] might be used in Error Messages
-  @param source_name [in] might be used in Error Messages
   @return 0:success or ERROR_LOG_FATAL.
 */
-int pcapnc::write_packet_record(uint32_t coarse_time, uint32_t nanosec, uint8_t outpt_buf[], const uint8_t outbuf[], size_t outlen, const char *source_name){
+int pcapnc::write_packet_record(uint32_t coarse_time, uint32_t nanosec, uint8_t outpt_buf[], const uint8_t outbuf[], size_t outlen){
 
   uint8_t *const trans_buf = (outpt_buf == NULL) ? inner_buf : outpt_buf;
 
@@ -286,7 +285,8 @@ int pcapnc::write_packet_record(uint32_t coarse_time, uint32_t nanosec, uint8_t 
   const size_t trans_len = PACKET_HEADER_SIZE + outlen;
   const size_t reslt_len = this->write(trans_buf, trans_len);
   if ( reslt_len != trans_len ) {
-    pcapnc_logerr("%s: Fails to output '%s' (partial packet data).\n", pcapnc::_progname.c_str(), source_name);
+    pcapnc_logerr("%s: Fails to output '%s' (partial packet data).\n", 
+                   pcapnc::_progname.c_str(), this->_source_name);
     return ERROR_LOG_FATAL;
   }
   return 0;

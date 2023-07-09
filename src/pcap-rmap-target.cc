@@ -80,7 +80,7 @@ int main(int argc, char *argv[])
     return ERROR_OPT;
   }
 
-  pcapnc lp;
+  pcapnc lp("send data");
   if ( param_send_filename != ""  ){
     if ( rmapc.is_write_channel() ) {
       pcapnc_logerr(PROGNAME "option '--send-data' could not be specified for RMAP Write channel '%s'.\n",  channel_str);
@@ -95,7 +95,7 @@ int main(int argc, char *argv[])
     use_rmaprd_rpl = 1;
   }
 
-  pcapnc sp;
+  pcapnc sp("store_data");
   if ( param_store_filename != ""  ){
     if ( rmapc.is_read_channel() ) {
       pcapnc_logerr(PROGNAME "option '--store-data' could not be specified for RMAP Read channel '%s'.\n",  channel_str);
@@ -113,9 +113,9 @@ int main(int argc, char *argv[])
 
   //// setup input/output files
 
-  pcapnc ip; const int i_ret = ip.read_nohead(stdin); // 0:success or ERROR_LOG_WARN.
+  pcapnc ip("input");  const int i_ret = ip.read_nohead(stdin);   // 0:success or ERROR_LOG_WARN.
   if ( i_ret != 0 ) return ERROR_OPT;
-  pcapnc op; const int o_ret = op.write_nohead(stdout); // 0:success or ERROR_LOG_WARN.
+  pcapnc op("output"); const int o_ret = op.write_nohead(stdout); // 0:success or ERROR_LOG_WARN.
   if ( o_ret != 0 ) return ERROR_OPT;
 
   ////
@@ -124,10 +124,10 @@ int main(int argc, char *argv[])
 
   while(1){
     ssize_t ret;
-    ret = ip.read_packet_header(input_buf, sizeof(input_buf), "input"); // 0:success, -1:end of input, or ERROR_LOG_FATAL 
+    ret = ip.read_packet_header(input_buf, sizeof(input_buf)); // 0:success, -1:end of input, or ERROR_LOG_FATAL 
     if ( ret <  0 ) return 0; // end of input, withouog logging message
     if ( ret >  0 ) return ERROR_RUN; 
-    ret = ip.read_packet_data(input_buf, "input"); // 0:success or ERROR_LOG_FATAL.
+    ret = ip.read_packet_data(input_buf); // 0:success or ERROR_LOG_FATAL.
     if ( ret != 0 ) return ERROR_RUN;
 
     // simulate network
@@ -147,10 +147,10 @@ int main(int argc, char *argv[])
         // generate RMAP READ Reply
         static uint8_t inpu2_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
         
-        ret = lp.read_packet_header(inpu2_buf, sizeof(inpu2_buf), "send data"); // 0:success, -1:end of input, or ERROR_LOG_FATAL
+        ret = lp.read_packet_header(inpu2_buf, sizeof(inpu2_buf)); // 0:success, -1:end of input, or ERROR_LOG_FATAL
         if ( ret <  0 ) return 0; // end of input, withouog logging message
         if ( ret >  0 ) return ERROR_RUN; 
-        ret = lp.read_packet_data(inpu2_buf, "send data"); // 0:success or ERROR_LOG_FATAL.
+        ret = lp.read_packet_data(inpu2_buf); // 0:success or ERROR_LOG_FATAL.
         if ( ret != 0 ) return ERROR_RUN;
         uint8_t     *inpbuf = inpu2_buf + PACKET_HEADER_SIZE;
         const size_t inplen = lp.caplen;
@@ -159,7 +159,7 @@ int main(int argc, char *argv[])
         rmapc.generate_read_reply(inpbuf, inplen, rcvbuf, rcvlen, rplbuf, rpllen); // 0:success or ERROR_LOG_FATAL.
         if ( ret != 0 ) return ERROR_RUN;      
       }
-      ret = op.write_packet_record(ip.coarse_time, ip.nanosec, rplbuf, rpllen, "output"); // 0:success or ERROR_LOG_FATAL.
+      ret = op.write_packet_record(ip.coarse_time, ip.nanosec, rplbuf, rpllen); // 0:success or ERROR_LOG_FATAL.
       if ( ret != 0 ) return ERROR_RUN;
     }
 
@@ -167,7 +167,7 @@ int main(int argc, char *argv[])
       const uint8_t *outbuf; 
       size_t outlen;
       rmapc.validate_command(rcvbuf, rcvlen, outbuf, outlen); // extract Service Data Unit (e.g. Space Packet)
-      ret = sp.write_packet_record(ip.coarse_time, ip.nanosec, outbuf, outlen, "store_data"); // 0:success or ERROR_LOG_FATAL.
+      ret = sp.write_packet_record(ip.coarse_time, ip.nanosec, outbuf, outlen); // 0:success or ERROR_LOG_FATAL.
       if ( ret != 0 ) return ERROR_RUN;
     } 
   }
