@@ -236,7 +236,9 @@ int main(int argc, char *argv[])
         uint8_t     *inpbuf = input_buf + PACKET_HEADER_SIZE;
         const size_t inplen = ip.caplen;
         // @ test-?????2?????-1*
-        rmapc.generate_write_command(inpbuf, inplen, cmdbuf, cmdlen);
+        ret =
+        rmapc.generate_write_command(inpbuf, inplen, cmdbuf, cmdlen); // 0:success or ERROR_LOG_FATAL.
+        if ( ret != 0 ) return ERROR_RUN;      
       } else {
         // @ test-?????2?????-2*
         rmapc.generate_read_command(                 cmdbuf, cmdlen);

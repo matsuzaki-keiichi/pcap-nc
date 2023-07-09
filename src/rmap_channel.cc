@@ -16,6 +16,8 @@ using namespace std;
 #include <string.h>
 // memcpy
 
+#define ERROR_LOG_FATAL 13
+
 #define pcapnc_logerr(...) fprintf(stderr, __VA_ARGS__) // TODO ...hhh...
 
 static long long parse_hex_longlong(const char *s, const char *varname, const char *channel_name){
@@ -113,7 +115,7 @@ rmap_channel::rmap_channel(){
 }
 
 /**
- * @return 0:success, othewise fail. 1:File Does Not Exist
+  @return 0:success, othewise fail. 1:File Does Not Exist
 */
 
 int rmap_channel::read_json(const char *file_name, const char *channel_name)
@@ -181,10 +183,11 @@ int rmap_channel::read_json(const char *file_name, const char *channel_name)
 }
 
 /**
- @param cmdbuf [out] 
-  Note: size shall be >=40(=16+12+12)
- @param cmdlen [in,out]
-  Note: 16..40
+  @param hedbuf [out] 
+   Note: size shall be >=40(=16+12+12)
+  @param hedlen [in,out]
+   Note: 16..40
+   Note: Enough buffer size shall be provided becase no check is performed.
  */
 
 void rmap_channel::generate_command_head(uint8_t hedbuf[], size_t &hedlen) {
@@ -238,10 +241,11 @@ void rmap_channel::generate_command_head(uint8_t hedbuf[], size_t &hedlen) {
 }
 
 /**
- @param cmdbuf [out]
-  Note: size shall be >=40(=16+12+12)
- @param cmdlen [in,out]
-  Note: 16..40
+  @param cmdbuf [out]
+   Note: size shall be >=40(=16+12+12)
+  @param cmdlen [in,out]
+   Note: 16..40
+   Note: Enough buffer size shall be provided becase no check is performed.
  */
 
 void rmap_channel::generate_read_command(uint8_t cmdbuf[], size_t &cmdlen) {
@@ -249,15 +253,16 @@ void rmap_channel::generate_read_command(uint8_t cmdbuf[], size_t &cmdlen) {
 }
 
 /**
- @param inpbuf [in]
- @param inplen [in]
- @param cmdbuf [out]
-  Note: size shall be >=40(=16+12+12)+inplen
- @param cmdlen [in,out]
-  Note: [16..40]+inplen
+  @param inpbuf [in]
+  @param inplen [in]
+  @param cmdbuf [out]
+   Note: size shall be >=40(=16+12+12)+inplen
+  @param cmdlen [in,out]
+   Note: [16..40]+inplen
+  @return 0:success or ERROR_LOG_FATAL (i.e. result of buffer size check).
  */
 
-void rmap_channel::generate_write_command(const uint8_t inpbuf[], size_t inplen, uint8_t cmdbuf[], size_t &cmdlen) {
+int rmap_channel::generate_write_command(const uint8_t inpbuf[], size_t inplen, uint8_t cmdbuf[], size_t &cmdlen) {
 
     // this method should be called only for RMAP Write Command 
     // i.e. this->instruction & 0x20 != 0
@@ -268,25 +273,27 @@ void rmap_channel::generate_write_command(const uint8_t inpbuf[], size_t inplen,
     this->generate_command_head(cmdbuf, hedlen);
 
     const size_t cmdlen1 = hedlen + inplen + 1 /* CRC length */;
-
     if ( cmdlen1 > cmdlen ) {
         pcapnc_logerr("output size (%zu) exceeds the buffer size (%zu).\n", cmdlen1, cmdlen);
-        exit(1);        
+        return ERROR_LOG_FATAL;
     }
     cmdlen = cmdlen1;    
 
     uint8_t *const data = cmdbuf + hedlen;
     memcpy(data, inpbuf, inplen);
     data[inplen] = rmap_channel::rmap_calculate_crc(data, inplen); /* Data CRC */
+
+    return 0;
 }
 
 /**
- @param rcvbuf [in]
- @param rcvlen [in]
- @param rplbuf [out]
-  Note: size shall be >=20(=8+12)
- @param rpllen [in,out]
-  Note: 8..20
+  @param rcvbuf [in]
+  @param rcvlen [in]
+  @param hedbuf [out]
+   Note: size shall be >=20(=8+12)
+  @param hedlen [in,out]
+   Note: 8..20
+   Note: Enough buffer size shall be provided becase no check is performed.
  */
 
 void rmap_channel::generate_reply_head(const uint8_t rcvbuf[], size_t rcvlen, uint8_t hedbuf[], size_t &hedlen) const {
@@ -316,12 +323,13 @@ void rmap_channel::generate_reply_head(const uint8_t rcvbuf[], size_t rcvlen, ui
 }
 
 /**
- @param rcvbuf [in]
- @param rcvlen [in]
- @param rplbuf [out]
-  Note: size shall be >=20(=8+12)
- @param rpllen [in,out]
-  Note: 8..20
+  @param rcvbuf [in]
+  @param rcvlen [in]
+  @param rplbuf [out]
+   Note: size shall be >=20(=8+12)
+  @param rpllen [in,out]
+   Note: 8..20
+   Note: Enough buffer size shall be provided becase no check is performed.
  */
 
 void rmap_channel::generate_write_reply(const uint8_t rcvbuf[], size_t rcvlen, uint8_t rplbuf[], size_t &rpllen) const {
@@ -335,17 +343,18 @@ void rmap_channel::generate_write_reply(const uint8_t rcvbuf[], size_t rcvlen, u
 }
 
 /**
- @param inpbuf [in]
- @param inplen [in]
- @param rcvbuf [in]
- @param rcvlen [in]
- @param rplbuf [out]
-  Note: size shall be >=20(=8+12)+inplen
- @param rpllen [in,out]
-  Note: [8..20]+inplen
- */
+  @param inpbuf [in]
+  @param inplen [in]
+  @param rcvbuf [in]
+  @param rcvlen [in]
+  @param rplbuf [out]
+   Note: size shall be >=20(=8+12)+inplen
+  @param rpllen [in,out]
+   Note: [8..20]+inplen
+  @return 0:success or ERROR_LOG_FATAL (i.e. result of buffer size check).
+*/
 
-void rmap_channel::generate_read_reply(const uint8_t inpbuf[], size_t inplen, const uint8_t rcvbuf[], size_t rcvlen, uint8_t rplbuf[], size_t &rpllen) const {
+int rmap_channel::generate_read_reply(const uint8_t inpbuf[], size_t inplen, const uint8_t rcvbuf[], size_t rcvlen, uint8_t rplbuf[], size_t &rpllen) const {
     size_t hedlen = rpllen;
 
     this -> generate_reply_head(rcvbuf, rcvlen, rplbuf, hedlen);
@@ -357,20 +366,28 @@ void rmap_channel::generate_read_reply(const uint8_t inpbuf[], size_t inplen, co
     cargo[10] = (inplen >>  0) & 0xFF;
     cargo[11] = rmap_channel::rmap_calculate_crc(cargo, 11); /* Header CRC */
 
+    const size_t rpllen1 = hedlen + 4 + inplen + 1 /* Data CRC */;
+    if ( rpllen1 > rpllen ) {
+        pcapnc_logerr("Size of RMAP Reply (%zu) exceeds the buffer size (%zu).\n", rpllen1, rpllen);
+        return ERROR_LOG_FATAL;
+    }
+
     uint8_t *const data = cargo + 12;
     memcpy(data, inpbuf, inplen);
     data[inplen] = rmap_channel::rmap_calculate_crc(data, inplen); /* Data CRC */
 
-    rpllen = hedlen + 4 + inplen + 1 /* Data CRC */;
+    rpllen = rpllen1;
+
+    return 0;
 }
 
 /**
- @param rcvbuf [in]
- @param rcvlen [in]
- @param outbuf [out]
-  Note: NULL for a read channel.
- @param outlen [in,out]
-  Note: 0 for a read channel.
+  @param rcvbuf [in]
+  @param rcvlen [in]
+  @param outbuf [out]
+   Note: NULL for a read channel.
+  @param outlen [in,out]
+   Note: 0 for a read channel.
  */
 
 void rmap_channel::validate_command(const uint8_t rcvbuf[], size_t rcvlen, const uint8_t *&outbuf, size_t &outlen) const {
@@ -461,12 +478,12 @@ void rmap_channel::validate_command(const uint8_t rcvbuf[], size_t rcvlen, const
 }
 
 /**
- @param rcvbuf [in]
- @param rcvlen [in]
- @param outbuf [out]
-  Note: NULL for a write channel.
- @param outlen [in,out]
-  Note: 0 for a write channel.
+  @param rcvbuf [in]
+  @param rcvlen [in]
+  @param outbuf [out]
+   Note: NULL for a write channel.
+  @param outlen [in,out]
+   Note: 0 for a write channel.
  */
 
 void rmap_channel::validate_reply(const uint8_t rcvbuf[], size_t rcvlen, const uint8_t *&outbuf, size_t &outlen) const {
@@ -553,10 +570,10 @@ void rmap_channel::validate_reply(const uint8_t rcvbuf[], size_t rcvlen, const u
 }
 
 /**
- @param inpbuf [in]
- @param inplen [in]
- @param outbuf [out]
- @param outlen [out]
+  @param inpbuf [in]
+  @param inplen [in]
+  @param outbuf [out]
+  @param outlen [out]
  */
 
 void rmap_channel::remove_path_address(const uint8_t inpbuf[], size_t inplen,   const uint8_t *&outbuf,   size_t &outlen) {
@@ -564,8 +581,6 @@ void rmap_channel::remove_path_address(const uint8_t inpbuf[], size_t inplen,   
     outbuf = inpbuf + num_path_address; 
     outlen = inplen - num_path_address;
 }
-
-extern "C" {
 
 // #define DEBUG
 
@@ -621,6 +636,4 @@ size_t rmap_channel::rmap_num_path_address(const uint8_t inbuf[], size_t insize)
         if ( inbuf[i] >= 32 ) break;      
     }
     return i;
-}
-
 }

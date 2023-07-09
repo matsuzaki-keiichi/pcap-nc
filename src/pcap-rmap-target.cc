@@ -153,7 +153,9 @@ int main(int argc, char *argv[])
         uint8_t     *inpbuf = inpu2_buf + PACKET_HEADER_SIZE;
         const size_t inplen = lp.caplen;
 
-        rmapc.generate_read_reply(inpbuf, inplen, rcvbuf, rcvlen, rplbuf, rpllen);
+        ret = 
+        rmapc.generate_read_reply(inpbuf, inplen, rcvbuf, rcvlen, rplbuf, rpllen); // 0:success or ERROR_LOG_FATAL.
+        if ( ret != 0 ) return ERROR_RUN;      
       }
       ret = op.write_packet_record(ip.coarse_time, ip.nanosec, rplbuf, rpllen, PROGNAME, "output"); // 0:success or ERROR_LOG_FATAL.
       if ( ret != 0 ) return ERROR_RUN;

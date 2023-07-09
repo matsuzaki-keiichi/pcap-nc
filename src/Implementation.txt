@@ -1,9 +1,27 @@
+Dependency:
+
+- c/c++
+- rapidjson
+- getopt
+- make
+- nc
+- bash, cat, stdbuf, ...
+
+Design Note:
+
 - Use C++ (object construction) only in the set up 
+
 - Use basically C in the repeated data transfer
-
-- Set size of the standard input/output to zero (at the begining of the C-programs).
-
-- in the main programs: catch errors which may be occurrs usage error
-- in the libraries: catch other errors with output of error log, either terminate or continuing processing depending upon criticallity
-
+  e.g. memcpy
 - minimize number of memory copy
+
+- some methods return status of execution
+- in the libraries: error might be or might not be logged to stderr. 
+  caller should terminate or continue processing depending upon criticallity
+  four types of result
+  - 0, -1           ... no error (-1 means end of input) 
+  - ERROR_PARAM     ... error is not logged by the libraries, message should be handled by callers
+  - ERROR_LOG_FATAL ... error is logged by the libraries, caller can be abort immidiately
+  - ERROR_LOG_WARN  ... error is logged by the libraries, caller may continue processing 
+
+- Set size of the standard input/output to zero (at the initialization of each input/output).

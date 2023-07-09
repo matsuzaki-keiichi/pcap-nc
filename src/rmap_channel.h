@@ -24,13 +24,13 @@ class rmap_channel {
   private:
     void generate_command_head  (                                               uint8_t   hedbuf[], size_t &hedlen);
   public:
-    void generate_write_command (const uint8_t inpbuf[], size_t inplen,         uint8_t   cmdbuf[], size_t &cmdlen);
+    int  generate_write_command (const uint8_t inpbuf[], size_t inplen,         uint8_t   cmdbuf[], size_t &cmdlen);
     void generate_read_command  (                                               uint8_t   cmdbuf[], size_t &cmdlen);
   private:    
     void generate_reply_head    (const uint8_t rcvbuf[], size_t rcvlen,         uint8_t   hedbuf[], size_t &hedlen) const;
   public:
     void generate_write_reply   (const uint8_t rcvbuf[], size_t rcvlen,         uint8_t   rplbuf[], size_t &rpllen) const;
-    void generate_read_reply    (const uint8_t inpbuf[], size_t inplen,   
+    int  generate_read_reply    (const uint8_t inpbuf[], size_t inplen,   
                                  const uint8_t rcvbuf[], size_t rcvlen,         uint8_t   rplbuf[], size_t &rpllen) const;  
     void validate_command       (const uint8_t rcvbuf[], size_t rcvlen,   const uint8_t *&outbuf,   size_t &outlen) const;
     void validate_reply         (const uint8_t rcvbuf[], size_t rcvlen,   const uint8_t *&outbuf,   size_t &outlen) const;

@@ -1,4 +1,41 @@
 pcap-nc
+
+Program to simulate SpaceWire/RMAP trunsactions over TCP/IP network.
+
+Data is stored in files in the PCAP format.
+
+In a socket over TCP/IP communication, 
+PCAP Packet Records (without PCAP Header) are transferred.
+
+In the test directory, a sequence of space packets are transfered 
+from a client to a server or from a server to a client 
+through the following channels:
+
+- Packet Transfer Protocol 
+- RMAP Write Channel (without acknowledge)　
+- RMAP Write Channel (with acknowledge)
+- RMAP Read  Channel
+
+==== How to use ====
+
+cd src
+
+ln -s (path to rapid json directory) rapidjson
+
+make install
+make clean
+
+cd ../test
+./test-all.sh
+
+==== specification of commands ====
+
+[pcap-nc]
+[pcap-replay]
+[pcap-rmap-target]
+[pcap-store]
+
+[pcap-nc]
 Arguments:
 The combination of the argements for pcap-replay(*1), pcap-store and those for nc and the following:
 --sleep second(int) :
@@ -13,7 +50,7 @@ PCAP Packet Records if --no-stdin is specified. PCAP file otherwise.
 Output:
 PCAP Packet Records if --link-type is not specified. PCAP file otherwise.
 
-pcap-store
+[pcap-store]
 Arguments:
 --link-type: (mandatory)
   either spp (Space Packet Protocol), spw (SpaceWire), and diosatlm (DIOSA Telemetry).
@@ -22,7 +59,7 @@ PCAP Packet Records.
 Output:
 PCAP file.
 
-pcap-replay
+[pcap-replay]
 Arguments:
 (time/timing related arguments)
 --after wait_sec(double) : (optional)
@@ -56,7 +93,8 @@ Retval:
 1: parameter error
 2: runtmie error
 
-pcap-rmap-target:
+[pcap-rmap-target]
+Arguments:
 (channel related arguments)
 --channel channelname: (mandatory)
   a channel name listed in the cofiguration file
@@ -74,3 +112,5 @@ Retval:
 0: success
 1: parameter error
 2: runtmie error
+
+end of file
