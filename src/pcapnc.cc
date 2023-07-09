@@ -218,12 +218,12 @@ int pcapnc::write_head(FILE *wp, uint8_t linktype){
 }
 
 /**
-  @param record_buffer [in] buffer of record
-  @param buffer_size   [in] size of recorde_buffer, should be equal or larger than the record size
   @return 0:success, -1:end of input, or ERROR_LOG_FATAL.
 */
-int pcapnc::read_packet_header(uint8_t record_buffer[], size_t buffer_size){
-  const size_t ret = this->read(record_buffer, PACKET_HEADER_SIZE);
+int pcapnc::read_packet_header(){
+  uint8_t header_buffer[PACKET_HEADER_SIZE];
+
+  const size_t ret = this->read(header_buffer, PACKET_HEADER_SIZE);
   if        ( ret == 0 ) {
     return -1;
   } else if ( ret < PACKET_HEADER_SIZE ) {
@@ -232,16 +232,10 @@ int pcapnc::read_packet_header(uint8_t record_buffer[], size_t buffer_size){
     return ERROR_LOG_FATAL;
   }
 
-  this->_coarse_time = this->extract_uint32(record_buffer+ 0);
-  this->_nanosec     = this->extract_uint32(record_buffer+ 4) * this->_p2n;
-  this->_caplen      = this->extract_uint32(record_buffer+ 8);
-  this->_orglen      = this->extract_uint32(record_buffer+12);
-
-  if ( PACKET_HEADER_SIZE + this->_caplen > buffer_size ) {
-    pcapnc_logerr("%s: Unexpected packet header (caplen(=%" PRIx32 ") too long).\n", 
-                   pcapnc::_progname.c_str(), this->_caplen);
-    return ERROR_LOG_FATAL;
-  }
+  this->_coarse_time = this->extract_uint32(header_buffer+ 0);
+  this->_nanosec     = this->extract_uint32(header_buffer+ 4) * this->_p2n;
+  this->_caplen      = this->extract_uint32(header_buffer+ 8);
+  this->_orglen      = this->extract_uint32(header_buffer+12);
 
   if ( this->_time_mode != 0 ){
     s3sim_coarse_time = this->_coarse_time;
@@ -252,11 +246,18 @@ int pcapnc::read_packet_header(uint8_t record_buffer[], size_t buffer_size){
 }
 
 /**
-  @param record_buffer [in] buffer of record
+  @param inp_buf [in] buffer for a PCAP packet
+  @param inp_len [in] size of the buffer
   @return 0:success or ERROR_LOG_FATAL.
 */
-int pcapnc::read_packet_data(uint8_t record_buffer[]){
-  const size_t ret = this->read(&(record_buffer[PACKET_HEADER_SIZE]), this->_caplen);
+int pcapnc::read_packet_data(uint8_t inpbuf[], size_t inplen){
+  if ( this->_caplen > inplen ) {
+    pcapnc_logerr("%s: Unexpected packet header (caplen(=%" PRIx32 ") too long).\n", 
+                   pcapnc::_progname.c_str(), this->_caplen);
+    return ERROR_LOG_FATAL;
+  }
+
+  const size_t ret = this->read(inpbuf, this->_caplen);
   if ( ret < this->_caplen ) {
     pcapnc_logerr("%s: Unexpected end of input (partial packet data).\n", 
                    pcapnc::_progname.c_str());
@@ -268,15 +269,15 @@ int pcapnc::read_packet_data(uint8_t record_buffer[]){
 static uint8_t inner_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
 
 /**
-  @param input_buf [in] buffer of record
-  @param input_len [in] size of recorde_buffer, should be equal or larger than the record size
+  @param inpbuf [in] buffer of record
+  @param inplen [in] size of recorde_buffer, should be equal or larger than the record size
   @return 0:success, -1:end of input, or ERROR_LOG_FATAL.
 */
-int pcapnc::read_packet_record(uint8_t input_buf[], size_t input_len){
+int pcapnc::read_packet(uint8_t inpbuf[], size_t inplen){
     int ret;
-    ret = this->read_packet_header(input_buf, input_len); // 0:success, -1:end of input, or ERROR_LOG_FATAL
+    ret = this->read_packet_header(); // 0:success, -1:end of input, or ERROR_LOG_FATAL
     if ( ret != 0 ) return ret;
-    ret = this->read_packet_data(input_buf); // 0:success or ERROR_LOG_FATAL.
+    ret = this->read_packet_data(inpbuf, inplen); // 0:success or ERROR_LOG_FATAL.
     return ret;
 }
 

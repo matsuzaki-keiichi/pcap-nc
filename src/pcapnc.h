@@ -44,10 +44,11 @@ class pcapnc {
   int write_head  (const char *filename, uint8_t linktype);
   int write_head  (FILE       *wp,       uint8_t linktype);
 private:
-  int read_packet_header(uint8_t record_buffer[], size_t buffer_size);
-  int read_packet_data  (uint8_t record_buffer[]);
+  int read_packet_header();
+  int read_packet_data(uint8_t inp_buf[], size_t inp_len);
+
 public:
-  int read_packet_record(uint8_t input_buf[], size_t input_len);
+  int read_packet(uint8_t inp_buf[], size_t inp_len);
   int write_packet_record(uint8_t outot_buf[], const uint8_t outbuf[], size_t outlen);
   inline int write_packet_record(const uint8_t outbuf[], size_t outlen){
     return this->write_packet_record(NULL, outbuf, outlen);

@@ -120,16 +120,16 @@ int main(int argc, char *argv[])
 
   ////
     
-  static uint8_t input_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
+  static uint8_t inpbuf[PACKET_DATA_MAX_SIZE];
 
   while(1){
     ssize_t ret;
-    ret = ip.read_packet_record(input_buf, sizeof(input_buf)); // 0:success, -1:end of input, or ERROR_LOG_FATAL 
+    ret = ip.read_packet(inpbuf, sizeof(inpbuf)); // 0:success, -1:end of input, or ERROR_LOG_FATAL 
     if ( ret <  0 ) return 0; // end of input, withouog logging message
     if ( ret >  0 ) return ERROR_RUN; 
 
     // simulate network
-    const uint8_t *rcvbuf, *inpbuf = input_buf + PACKET_HEADER_SIZE;
+    const uint8_t *rcvbuf;
     size_t         rcvlen,  inplen = (size_t) ip._caplen;
     rmap_channel::remove_path_address(inpbuf, inplen, rcvbuf, rcvlen);
 
@@ -143,16 +143,15 @@ int main(int argc, char *argv[])
         rmapc.generate_write_reply(rcvbuf, rcvlen, rplbuf, rpllen);
       } else {
         // generate RMAP READ Reply
-        static uint8_t inpu2_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
+        static uint8_t in2buf[PACKET_DATA_MAX_SIZE];
         
-        ret = lp.read_packet_record(inpu2_buf, sizeof(inpu2_buf)); // 0:success, -1:end of input, or ERROR_LOG_FATAL
+        ret = lp.read_packet(in2buf, sizeof(in2buf)); // 0:success, -1:end of input, or ERROR_LOG_FATAL
         if ( ret <  0 ) return 0; // end of input, withouog logging message
         if ( ret >  0 ) return ERROR_RUN; 
-        uint8_t     *inpbuf = inpu2_buf + PACKET_HEADER_SIZE;
-        const size_t inplen = lp._caplen;
+        const size_t in2len = lp._caplen;
 
         ret = 
-        rmapc.generate_read_reply(inpbuf, inplen, rcvbuf, rcvlen, rplbuf, rpllen); // 0:success or ERROR_LOG_FATAL.
+        rmapc.generate_read_reply(in2buf, in2len, rcvbuf, rcvlen, rplbuf, rpllen); // 0:success or ERROR_LOG_FATAL.
         if ( ret != 0 ) return ERROR_RUN;      
       }
       ret = op.write_packet_record(rplbuf, rpllen); // 0:success or ERROR_LOG_FATAL.

@@ -175,9 +175,10 @@ int main(int argc, char *argv[])
   
   while(1){
     static uint8_t input_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
+    uint8_t *const inpbuf = input_buf + PACKET_HEADER_SIZE;
 
     int ret;
-    ret = ip.read_packet_record(input_buf, sizeof(input_buf)); // 0:success, -1:end of input, or ERROR_LOG_FATAL
+    ret = ip.read_packet(inpbuf, PACKET_DATA_MAX_SIZE); // 0:success, -1:end of input, or ERROR_LOG_FATAL
     if ( ret <  0 ) { // end of input, withouog logging message
       // handle option '--after wait_sec' @ test-?????2?????-{14,15,23,24}*
       s3sim_sleep(param_after_wtime); 
@@ -216,7 +217,6 @@ int main(int argc, char *argv[])
       uint8_t       *cmdbuf = trans_buf + PACKET_HEADER_SIZE;
       size_t         cmdlen = PACKET_DATA_MAX_SIZE;
       if ( rmapc.is_write_channel() ){
-        uint8_t     *inpbuf = input_buf + PACKET_HEADER_SIZE;
         const size_t inplen = ip._caplen;
         // @ test-?????2?????-1*
         ret =
@@ -236,7 +236,7 @@ int main(int argc, char *argv[])
 
     if ( use_rmap_reply ) {
       // reuse - input_buf      
-      ret = lp.read_packet_record(input_buf, sizeof(input_buf)); // 0:success, -1:end of input, or ERROR_LOG_FATAL
+      ret = lp.read_packet(inpbuf, PACKET_DATA_MAX_SIZE); // 0:success, -1:end of input, or ERROR_LOG_FATAL
       if ( ret <  0 ) { // end of input, without logging message
         // handle option '--after wait_sec' @ test-?????2?????-{14,15,23,24}*
         s3sim_sleep(param_after_wtime); 
@@ -246,7 +246,7 @@ int main(int argc, char *argv[])
 
       // simulate network
 
-      const uint8_t *retbuf, *inpbuf = input_buf + PACKET_HEADER_SIZE;
+      const uint8_t *retbuf;
       size_t         retlen,  inplen = (size_t) lp._caplen;
       rmap_channel::remove_path_address(inpbuf, inplen, retbuf, retlen);
 
