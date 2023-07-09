@@ -62,7 +62,7 @@ int main(int argc, char *argv[])
     pcapnc_logerr(PROGNAME "option '--channel' is mandatory.\n");
     return ERROR_OPT;
   }
-    
+
   class rmap_channel rmapc;
   const char* config_str  = param_config.c_str();
   const char* channel_str = param_channel.c_str();
@@ -91,7 +91,6 @@ int main(int argc, char *argv[])
       return ERROR_OPT;      
     }
     use_rmaprd_rpl = 1;
-    // TODO should implement consistency check with this->instruction
   }
 
   pcapnc sp;
@@ -130,9 +129,9 @@ int main(int argc, char *argv[])
     if ( ret != 0 ) return ERROR_RUN;
 
     // simulate network
-    const size_t num_path_address = rmap_num_path_address(input_buf + PACKET_HEADER_SIZE, ip.caplen);
-    const uint8_t *rcvbuf = input_buf + PACKET_HEADER_SIZE + num_path_address; 
-    size_t rcvlen = ((size_t) ip.caplen) - num_path_address;
+    const uint8_t *rcvbuf, *inpbuf = input_buf + PACKET_HEADER_SIZE;
+    size_t         rcvlen,  inplen = (size_t) ip.caplen;
+    rmap_channel::remove_path_address(inpbuf, inplen, rcvbuf, rcvlen);
 
     // generate output
     if ( rmapc.has_responces() ) {
@@ -151,7 +150,7 @@ int main(int argc, char *argv[])
         if ( ret >  0 ) return ERROR_RUN; 
         ret = lp.read_packet_data(inpu2_buf, PROGNAME, "send data"); // 0:success or ERROR_LOG_FATAL.
         if ( ret != 0 ) return ERROR_RUN;
-        uint8_t     *inpbuf = inpu2_buf  + PACKET_HEADER_SIZE;
+        uint8_t     *inpbuf = inpu2_buf + PACKET_HEADER_SIZE;
         const size_t inplen = lp.caplen;
 
         rmapc.generate_read_reply(inpbuf, inplen, rcvbuf, rcvlen, rplbuf, rpllen);

@@ -263,15 +263,15 @@ int main(int argc, char *argv[])
 
       // simulate network
 
-      const size_t num_path_address = rmap_num_path_address(input_buf + PACKET_HEADER_SIZE, lp.caplen);
-      const uint8_t *retnbuf = input_buf + PACKET_HEADER_SIZE + num_path_address; 
-      size_t         retnlen = ((size_t) lp.caplen) - num_path_address;
+      const uint8_t *retbuf, *inpbuf = input_buf + PACKET_HEADER_SIZE;
+      size_t         retlen,  inplen = (size_t) lp.caplen;
+      rmap_channel::remove_path_address(inpbuf, inplen, retbuf, retlen);
 
       // check returned packet is expected
 
       const uint8_t *outbuf;
       size_t outlen;
-      rmapc.validate_reply(retnbuf, retnlen, outbuf, outlen); // extract Service Data Unit (e.g. Space Packet) for RMAP Read Reply
+      rmapc.validate_reply(retbuf, retlen, outbuf, outlen); // extract Service Data Unit (e.g. Space Packet) for RMAP Read Reply
 
       if ( rmapc.is_read_channel() && store_rmap_read ){
         ret = sp.write_packet_record(my_coarse_time, my_nanosec, outbuf, outlen, PROGNAME, "store_data"); // 0:success or ERROR_LOG_FATAL.

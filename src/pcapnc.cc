@@ -1,18 +1,17 @@
 #include "pcapnc.h"
 
-#include <inttypes.h>
-// PRIxN
-#include <unistd.h>
-// sleep
-#include <arpa/inet.h>
-// htonl
-// ntohl
-#include <byteswap.h>
-// bswap_32 (gcc)
-#include <string.h>
-// memcpy
 #include <stdio.h>
 // setvbuf
+#include <inttypes.h>
+// PRIxN
+#include <string.h>
+// memcpy
+#include <arpa/inet.h>
+// htonl, ntohl
+#include <byteswap.h>
+// bswap_32 (gcc)
+#include <unistd.h>
+// sleep
 
 // #define DEBUG
 
@@ -29,10 +28,8 @@ size_t pcapnc::read(void *buf, size_t nmemb){
     if ( ret > 0 ) {
       remaining_nmemb -= ret;
     } else {
-      //fprintf(stderr, "remaining_nmemb=%zu\n", remaining_nmemb);
       if ( feof(this->rp) ) break;
       if ( ferror(this->rp) ) break;
-      //fprintf(stderr, "sleep 1\n");
       sleep(READ_RETRY);
     }
   }
@@ -56,27 +53,19 @@ size_t pcapnc::write(const void *buf, size_t nmemb){
   return nmemb - remaining_nmemb;
 }
 
-#if 0
-static uint32_t pcapnc_extract_uint32(int exec_bswap, void *ptr){
-  const uint32_t value = * (uint32_t*) ptr;
-  return (exec_bswap) ? bswap_32(value) : value;
-}
-#endif
-
-static uint16_t pcapnc_extract_uint16(int exec_bswap, void *ptr){
+uint16_t pcapnc::extract_uint16(void *ptr){
   const uint16_t value = * (uint16_t*) ptr;
-  return (exec_bswap) ? bswap_16(value) : value;
+  return (this->exec_bswap) ? bswap_16(value) : value;
+}
+
+uint32_t pcapnc::extract_uint32(void *ptr){
+  const uint32_t value = * (uint32_t*) ptr;
+  return (this->exec_bswap) ? bswap_32(value) : value;
 }
 
 static void pcapnc_network_encode_uint32(void *ptr, uint32_t value){
   * (uint32_t*) ptr = htonl( value );
 }
-
-#if 0
-static uint32_t pcapnc_network_decode_uint32(void *ptr){
-  return ntohl( * (uint32_t*) ptr );
-}
-#endif
 
 #define MAGIC_NUMBER_USEC   0xA1B2C3D4
 #define MAGIC_NUMBER_NSEC   0xA1B23C4D
@@ -90,7 +79,6 @@ static uint32_t pcapnc_network_decode_uint32(void *ptr){
 /**
   @return 0:success or ERROR_LOG_WARN.
 */
-
 int pcapnc::read_nohead(FILE *rp){
   this->rp = rp;
   this->p2n = 1;   
@@ -107,7 +95,6 @@ int pcapnc::read_nohead(FILE *rp){
 /**
   @return 0:success, ERROR_PARAM, or ERROR_LOG_WARN.
 */
-
 int pcapnc::read_nohead(const char *filename){
   FILE *rp = fopen(filename, "r");
   if ( rp == NULL ) { return ERROR_PARAM; }
@@ -119,7 +106,6 @@ int pcapnc::read_nohead(const char *filename){
 /**
   @return 0:success, ERROR_PARAM, ERROR_LOG_FATAL, or ERROR_LOG_WARN.
 */
-
 int pcapnc::read_head(const char *filename){
   return this->read_nohead(filename) || this->read_head(this->rp);    
 }
@@ -127,7 +113,6 @@ int pcapnc::read_head(const char *filename){
 /**
   @return 0:success, or ERROR_LOG_FATAL.
 */
-
 int pcapnc::read_head(FILE *rp){
 
   this->read_nohead(rp);
@@ -155,8 +140,8 @@ int pcapnc::read_head(FILE *rp){
     return ERROR_LOG_FATAL;
   }
 
-  const uint32_t major_version = pcapnc_extract_uint16(exec_bswap, inbuf+4 );
-  const uint32_t minor_version = pcapnc_extract_uint16(exec_bswap, inbuf+6 );
+  const uint32_t major_version = this->extract_uint16(inbuf+4);
+  const uint32_t minor_version = this->extract_uint16(inbuf+6);
 
   if ( major_version != PCAP_MAJOR_VERSION || minor_version != PCAP_MINOR_VERSION ) {
     pcapnc_logerr("File is not a PCAP file (unexpected version number=%" PRId16 ".%" PRId16 ").\n",
@@ -169,7 +154,6 @@ int pcapnc::read_head(FILE *rp){
 /**
   @return 0:success or ERROR_LOG_WARN.
 */
-
 int pcapnc::write_nohead(FILE *wp){
   this->wp = wp;
   this->p2n = 1;
@@ -195,7 +179,6 @@ static uint8_t output_pcap_header[PCAP_HEADER_SIZE] = {
 /**
   @return 0:success, ERROR_PARAM, ERROR_LOG_FATAL, or ERROR_LOG_WARN.
 */
-
 int pcapnc::write_head(const char *filename, uint8_t linktype){
   FILE *wp = fopen(filename, "w");
   if ( wp == NULL ) { return ERROR_PARAM; }
@@ -205,7 +188,6 @@ int pcapnc::write_head(const char *filename, uint8_t linktype){
 /**
   @return 0:success, ERROR_LOG_FATAL, or ERROR_LOG_WARN.
 */
-
 int pcapnc::write_head(FILE *wp, uint8_t linktype){
   this->write_nohead(wp);
 
@@ -219,13 +201,13 @@ int pcapnc::write_head(FILE *wp, uint8_t linktype){
   return 0;
 }
 
-#define PACKET_HEADER_SIZE  16
-// TODO eliminate duplicated definition
-
 /**
+  @param record_buffer [in] buffer of record
+  @param buffer_size   [in] size of recorde_buffer, should be equal or larger than the record size
+  @param prog_name     [in] name of program (might be used in the error logging)
+  @param source_name   [in] name of source  (might be used in the error logging)
   @return 0:success, -1:end of input, or ERROR_LOG_FATAL.
 */
-
 int pcapnc::read_packet_header(uint8_t record_buffer[], size_t buffer_size, const char *prog_name, const char *source_name){
   const size_t ret = this->read(record_buffer, PACKET_HEADER_SIZE);
   if        ( ret == 0 ) {
@@ -248,9 +230,11 @@ int pcapnc::read_packet_header(uint8_t record_buffer[], size_t buffer_size, cons
 }
 
 /**
+  @param record_buffer [in] buffer of record
+  @param prog_name     [in] name of program (might be used in the error logging)
+  @param source_name   [in] name of source  (might be used in the error logging)
   @return 0:success or ERROR_LOG_FATAL.
 */
-
 int pcapnc::read_packet_data(uint8_t record_buffer[], const char *prog_name, const char *source_name){
   const size_t ret = this->read(&(record_buffer[PACKET_HEADER_SIZE]), this->caplen);
   if ( ret < this->caplen ) {
@@ -291,22 +275,9 @@ int pcapnc::write_packet_record(uint32_t coarse_time, uint32_t nanosec, uint8_t 
 
   const size_t trans_len = PACKET_HEADER_SIZE + outlen;
   const size_t reslt_len = this->write(trans_buf, trans_len);
-
-  const int retval = reslt_len != trans_len;
-  if ( retval != 0 ) {
+  if ( reslt_len != trans_len ) {
     pcapnc_logerr("%sFails to output '%s' (partial packet data).\n", prog_name, source_name);
     return ERROR_LOG_FATAL;
   }
   return 0;
 }
-
-uint16_t pcapnc::extract_uint16(void *ptr){
-  const uint16_t value = * (uint16_t*) ptr;
-  return (this->exec_bswap) ? bswap_16(value) : value;
-}
-
-uint32_t pcapnc::extract_uint32(void *ptr){
-  const uint32_t value = * (uint32_t*) ptr;
-  return (this->exec_bswap) ? bswap_32(value) : value;
-}
-

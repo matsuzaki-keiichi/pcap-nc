@@ -47,9 +47,9 @@ static void test_write_channel(){
 
     //// Receive RMAP Write Command
 
-    const size_t num_recv_path_address = rmap_num_path_address(cmdbuf, cmdlen);
-    uint8_t *rcvbuf = cmdbuf + num_recv_path_address;
-    size_t   rcvlen = cmdlen - num_recv_path_address;
+    const uint8_t *rcvbuf;
+    size_t         rcvlen;
+    rmap_channel::remove_path_address(cmdbuf, cmdlen, rcvbuf, rcvlen);
 
     fprintf(stderr, "Received RMAP Write Command:\n");
     output_buffer(rcvbuf, rcvlen, 0);
@@ -76,9 +76,9 @@ static void test_write_channel(){
 
     //// Receive RMAP Write Reply
 
-    const size_t num_retn_path_address = rmap_num_path_address(rplbuf, rpllen);
-    uint8_t *rtnbuf = rplbuf + num_retn_path_address;
-    size_t   rtnlen = rpllen - num_retn_path_address;
+    const uint8_t *rtnbuf;
+    size_t         rtnlen;
+    rmap_channel::remove_path_address(rplbuf, rpllen, rtnbuf, rtnlen);
 
     fprintf(stderr, "Received RMAP Write Reply:\n");
     output_buffer(rtnbuf, rtnlen, 0);
@@ -103,10 +103,9 @@ void test_read_channel(){
     output_buffer(cmdbuf, cmdlen, rmapr.num_dpa_padding);
 
     //// Receive RMAP Read Command
-
-    const size_t num_recv_path_address = rmap_num_path_address(cmdbuf, cmdlen);
-    uint8_t *rcvbuf = cmdbuf  + num_recv_path_address;
-    size_t   rcvlen = cmdlen - num_recv_path_address;
+    const uint8_t *rcvbuf;
+    size_t         rcvlen;
+    rmap_channel::remove_path_address(cmdbuf, cmdlen, rcvbuf, rcvlen);
 
     fprintf(stderr, "Received RMAP Read Command:\n");
     output_buffer(rcvbuf, rcvlen, 0);
@@ -124,10 +123,9 @@ void test_read_channel(){
     output_buffer(rplbuf, rpllen, 0);
 
     //// Receive RMAP Write Reply
-
-    const size_t num_retn_path_address = rmap_num_path_address(rplbuf, rpllen);
-    uint8_t *rtnbuf = rplbuf + num_retn_path_address;
-    size_t   rtnlen = rpllen - num_retn_path_address;
+    const uint8_t *rtnbuf;
+    size_t         rtnlen;
+    rmap_channel::remove_path_address(rplbuf, rpllen, rtnbuf, rtnlen);
 
     fprintf(stderr, "Received RMAP Read Reply:\n");
     output_buffer(rtnbuf, rtnlen, 0);
@@ -135,6 +133,9 @@ void test_read_channel(){
     const uint8_t *outbuf = NULL;
     size_t outlen = 0;
     rmapr.validate_reply(rtnbuf, rtnlen, outbuf, outlen);
+
+    fprintf(stderr, "Received RMAP Read Reply Data:\n");
+    output_buffer(outbuf, outlen, 0);
 }
 
 int main(int argc, char *argv[])

@@ -132,9 +132,8 @@ int rmap_channel::read_json(const char *file_name, const char *channel_name)
         return rmap_channel::JSON_ERROR;
     }
 
-    int status = 99;
+    int status = rmap_channel::NOCHANNEL;
 
-//    rapidjson::Value::MemberIterator attributeIterator = doc.FindMember( "channels" );
     const rapidjson::Value& channels = doc[ "channels" ];
 
     for (rapidjson::Value::ConstValueIterator itr = channels.Begin(); itr != channels.End(); ++itr) {
@@ -180,8 +179,6 @@ int rmap_channel::read_json(const char *file_name, const char *channel_name)
 
     return status;
 }
-
-#define RMAP_PROTOCOL_ID 0x01
 
 /**
  @param cmdbuf [out] 
@@ -233,7 +230,7 @@ void rmap_channel::generate_command_head(uint8_t hedbuf[], size_t &hedlen) {
     cargo[12+n] = (this->data_length    >> 16) & 0xFF;
     cargo[13+n] = (this->data_length    >>  8) & 0xFF;
     cargo[14+n] = (this->data_length    >>  0) & 0xFF;
-    cargo[15+n] = rmap_calculate_crc(cargo, 15+n); /* Header CRC */
+    cargo[15+n] = rmap_channel::rmap_calculate_crc(cargo, 15+n); /* Header CRC */
 
     this->transaction_id = this->transaction_id + 1;
 
@@ -280,7 +277,7 @@ void rmap_channel::generate_write_command(const uint8_t inpbuf[], size_t inplen,
 
     uint8_t *const data = cmdbuf + hedlen;
     memcpy(data, inpbuf, inplen);
-    data[inplen] = rmap_calculate_crc(data, inplen); /* Data CRC */
+    data[inplen] = rmap_channel::rmap_calculate_crc(data, inplen); /* Data CRC */
 }
 
 /**
@@ -332,7 +329,7 @@ void rmap_channel::generate_write_reply(const uint8_t rcvbuf[], size_t rcvlen, u
     this -> generate_reply_head(rcvbuf, rcvlen, rplbuf, hedlen);
 
     uint8_t *const cargo = rplbuf + hedlen - 8;
-    cargo[7] = rmap_calculate_crc(cargo, 7); /* Header CRC */
+    cargo[7] = rmap_channel::rmap_calculate_crc(cargo, 7); /* Header CRC */
 
     rpllen = hedlen;
 }
@@ -358,11 +355,11 @@ void rmap_channel::generate_read_reply(const uint8_t inpbuf[], size_t inplen, co
     cargo[ 8] = (inplen >> 16) & 0xFF;
     cargo[ 9] = (inplen >>  8) & 0xFF;
     cargo[10] = (inplen >>  0) & 0xFF;
-    cargo[11] = rmap_calculate_crc(cargo, 11); /* Header CRC */
+    cargo[11] = rmap_channel::rmap_calculate_crc(cargo, 11); /* Header CRC */
 
     uint8_t *const data = cargo + 12;
     memcpy(data, inpbuf, inplen);
-    data[inplen] = rmap_calculate_crc(data, inplen); /* Data CRC */
+    data[inplen] = rmap_channel::rmap_calculate_crc(data, inplen); /* Data CRC */
 
     rpllen = hedlen + 4 + inplen + 1 /* Data CRC */;
 }
@@ -400,7 +397,7 @@ void rmap_channel::validate_command(const uint8_t rcvbuf[], size_t rcvlen, const
     const int source_path_address_length = cargo[2] & 0x03; 
     const int n = source_path_address_length << 2;
 
-    const uint8_t header_crc = rmap_calculate_crc(cargo, 15+n);
+    const uint8_t header_crc = rmap_channel::rmap_calculate_crc(cargo, 15+n);
     if ( cargo[15+n] != header_crc ){
         pcapnc_logerr("Header CRC Error.\n");
         return;       
@@ -453,7 +450,7 @@ void rmap_channel::validate_command(const uint8_t rcvbuf[], size_t rcvlen, const
             return;       
         }
         const uint8_t *const data = cargo + 16 + n;
-        const uint8_t data_crc = rmap_calculate_crc(data, outlen1);
+        const uint8_t data_crc = rmap_channel::rmap_calculate_crc(data, outlen1);
         if ( data[outlen1] != data_crc ){
             pcapnc_logerr("Data CRC Error.\n");
             return;
@@ -526,7 +523,7 @@ void rmap_channel::validate_reply(const uint8_t rcvbuf[], size_t rcvlen, const u
     }
 
     if ( this->is_write_channel() ) {
-        const uint8_t crc = rmap_calculate_crc(cargo, 7);
+        const uint8_t crc = rmap_channel::rmap_calculate_crc(cargo, 7);
         if ( cargo[7] != crc ){
             pcapnc_logerr("Header CRC Error.\n");
             return;       
@@ -534,7 +531,7 @@ void rmap_channel::validate_reply(const uint8_t rcvbuf[], size_t rcvlen, const u
         outbuf = NULL;
         outlen = 0;
     } else {
-        const uint8_t header_crc = rmap_calculate_crc(cargo, 11);
+        const uint8_t header_crc = rmap_channel::rmap_calculate_crc(cargo, 11);
         const size_t outlen1 = (((size_t) cargo[ 8]) << 16)
                              + (((size_t) cargo[ 9]) <<  8)
                              + (((size_t) cargo[10]) <<  0);
@@ -544,7 +541,7 @@ void rmap_channel::validate_reply(const uint8_t rcvbuf[], size_t rcvlen, const u
         }
 
         const uint8_t *const data = cargo + 12;
-        const uint8_t data_crc = rmap_calculate_crc(data, outlen1); /* Data CRC */
+        const uint8_t data_crc = rmap_channel::rmap_calculate_crc(data, outlen1); /* Data CRC */
         if ( data[outlen1] != data_crc ) {
             pcapnc_logerr("Data CRC Error.\n");
         }
@@ -553,6 +550,19 @@ void rmap_channel::validate_reply(const uint8_t rcvbuf[], size_t rcvlen, const u
         outlen = outlen1;
     }
     return;
+}
+
+/**
+ @param inpbuf [in]
+ @param inplen [in]
+ @param outbuf [out]
+ @param outlen [out]
+ */
+
+void rmap_channel::remove_path_address(const uint8_t inpbuf[], size_t inplen,   const uint8_t *&outbuf,   size_t &outlen) {
+    const size_t num_path_address = rmap_channel::rmap_num_path_address(inpbuf, inplen);
+    outbuf = inpbuf + num_path_address; 
+    outlen = inplen - num_path_address;
 }
 
 extern "C" {
@@ -597,7 +607,7 @@ static const uint8_t RMAP_CRC_TABLE[] = {
     0xba, 0x2b, 0x59, 0xc8, 0xbd, 0x2c, 0x5e, 0xcf   // 31
 };
 
-uint8_t rmap_calculate_crc(const uint8_t data[], size_t length) {
+uint8_t rmap_channel::rmap_calculate_crc(const uint8_t data[], size_t length) {
     uint8_t crc = 0x00;
     for (size_t i = 0; i < length; i++) {
         crc = RMAP_CRC_TABLE[(crc ^ data[i]) & 0xff];
@@ -605,7 +615,7 @@ uint8_t rmap_calculate_crc(const uint8_t data[], size_t length) {
     return crc;
 }
 
-size_t rmap_num_path_address(const uint8_t inbuf[], size_t insize){
+size_t rmap_channel::rmap_num_path_address(const uint8_t inbuf[], size_t insize){
     size_t i;
     for ( i=0; i<insize; i++ ){
         if ( inbuf[i] >= 32 ) break;      

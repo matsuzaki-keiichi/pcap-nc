@@ -4,6 +4,7 @@
 
 #define RMAP_MAX_NUM_PATH_ADDRESS 12
 
+#define RMAP_PROTOCOL_ID 0x01
 #define RMAP_INST_WRITE  0x20
 #define RMAP_INST_REPLY  0x08
 
@@ -30,9 +31,12 @@ class rmap_channel {
   public:
     void generate_write_reply   (const uint8_t rcvbuf[], size_t rcvlen,         uint8_t   rplbuf[], size_t &rpllen) const;
     void generate_read_reply    (const uint8_t inpbuf[], size_t inplen,   
-                                   const uint8_t rcvbuf[], size_t rcvlen,         uint8_t   rplbuf[], size_t &rpllen) const;  
+                                 const uint8_t rcvbuf[], size_t rcvlen,         uint8_t   rplbuf[], size_t &rpllen) const;  
     void validate_command       (const uint8_t rcvbuf[], size_t rcvlen,   const uint8_t *&outbuf,   size_t &outlen) const;
     void validate_reply         (const uint8_t rcvbuf[], size_t rcvlen,   const uint8_t *&outbuf,   size_t &outlen) const;
+
+    static
+    void remove_path_address    (const uint8_t inpbuf[], size_t inplen,   const uint8_t *&outbuf,   size_t &outlen);
 
   public:
     uint8_t  d_path_address[RMAP_MAX_NUM_PATH_ADDRESS]; size_t num_dpa;
@@ -47,12 +51,8 @@ class rmap_channel {
     size_t   data_length;
 
     uint16_t transaction_id;
+
+  private:
+    static uint8_t rmap_calculate_crc(const uint8_t data[], size_t length);
+    static size_t  rmap_num_path_address(const uint8_t inbuf[], size_t insize);
 };
-
-extern "C" {
-
-extern void rmap_read_json();
-extern uint8_t rmap_calculate_crc(const uint8_t data[], size_t length);
-extern size_t rmap_num_path_address(const uint8_t inbuf[], size_t insize);
-
-}
