@@ -5,7 +5,7 @@ The combination of the argements for pcap-replay(*1), pcap-store and those for n
   delay time to start nc command
 --no-stdin
   no input from stdin, which means pcap-replay is not invoked.
---check-reply
+--check-reply (optional; only for RMAP Read channel or RMAP Write channel with acknowledges)
   check RMAP Write Reply
 *1: except for --receive-reply
 Input:
@@ -25,6 +25,8 @@ Arguments:
 --store-data output(path): (optional; only for RMAP read channel, requires --receive-reply option)
   store user data collected by RMAP Read Transactions in the PCAP format
 (time/timing related arguments)
+--after wait_sec(double) : (optional)
+  time to wait after sending the last Packet Record.
 --before wait_sec(double) : (optional)
   time to wait before sending the first Packet Record.
 --interval interval_sec (double): (optional)
@@ -40,6 +42,10 @@ Note: Input is dummy (i.e. only time is used) for a RMAP Read channel.
 Output:
 RMAP Command Packets in PCAP Packet Records if RMAP Write/Read Channel is specified.
 PCAP Packet Records in the input PCAP file otherwise.
+Retval:
+0: success
+1: parameter error
+2: runtmie error
 
 pcap-store
 Arguments:
@@ -55,9 +61,9 @@ pcap-rmap-target:
   a channel name listed in the cofiguration file
 --config filename: (mandatory)
   name of a configuration file
---send-data output(path): (optional; only for RMAP read channel)
+--send-data output(path): (optional; only for RMAP Read channel)
   input data for a RMAP Read Channel in the PCAP file format
---store-data output(path): (optional)
+--store-data output(path): (optional; only for RMAP Write channel)
   store user data collected by RMAP Write Transactions in the PCAP format
 Input:
 RMAP Command Packets in PCAP Packet Records.

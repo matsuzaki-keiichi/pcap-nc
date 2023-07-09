@@ -1,27 +1,23 @@
+#include <getopt.h>
+#include <string>
+
 #include <stdio.h>
 #include <stdint.h>
 #include <inttypes.h>
 // PRIx32
-#include <string.h>
-// memcpy
-#include <getopt.h>
-
-#include <string>
 
 #include "rmap_channel.h"
 #include "pcapnc.h"
 
-#define PACKET_HEADER_SIZE  16
-#define PACKET_DATA_MAX_SIZE 0x10006
+static int store_rmap_write = 0;
+static int use_rmaprd_rpl   = 0;
 
-#define ERROR_5 5
-#define ERROR_6 6
-#define ERROR_7 7
-#define ERROR_8 8
+static std::string param_config         = ""; 
+static std::string param_channel        = ""; 
+static std::string param_send_filename  = ""; 
+static std::string param_store_filename = ""; 
 
 #define OPTSTRING ""
-
-static int store_rmap_write  = 0;
 
 static struct option long_options[] = {
   {"config",     required_argument, NULL, 'c'},
@@ -31,23 +27,16 @@ static struct option long_options[] = {
   { NULL,        0,                 NULL,  0 }
 };
 
-static std::string param_config         = ""; 
-static std::string param_channel        = ""; 
-static std::string param_send_filename  = ""; 
-static std::string param_store_filename = ""; 
-
-static int use_rmaprd_rpl   = 0;
-
 #define PROGNAME "pcap-rmap-target: "
 
 #define ERROR_OPT 1
+#define ERROR_RUN 2
 
 int main(int argc, char *argv[])
 {
   //// parse options
   
-  int option_error    = 0;
-  
+  int option_error = 0;
   while (1) {
 
     int option_index = 0;
@@ -63,9 +52,7 @@ int main(int argc, char *argv[])
     default: option_error=1; break;
     }
   }
-  if (option_error) {
-    return 1;
-  }
+  if (option_error) return ERROR_OPT;
   
   if ( param_config == "" ){
     pcapnc_logerr(PROGNAME "option '--config' is mandatory.\n");
@@ -74,7 +61,8 @@ int main(int argc, char *argv[])
   if ( param_channel == "" ){
     pcapnc_logerr(PROGNAME "option '--channel' is mandatory.\n");
     return ERROR_OPT;
-  }  
+  }
+    
   class rmap_channel rmapc;
   const char* config_str  = param_config.c_str();
   const char* channel_str = param_channel.c_str();
@@ -97,7 +85,7 @@ int main(int argc, char *argv[])
       return ERROR_OPT;      
     }
     const char *filename = param_send_filename.c_str();
-    const int r_ret = lp.read_head(filename); 
+    const int r_ret = lp.read_head(filename); // 0:success, ERROR_PARAM, ERROR_LOG_FATAL, or ERROR_LOG_WARN.
     if ( r_ret ) {
       pcapnc_logerr(PROGNAME "file '%s' to send data could not be opend.\n",  filename);
       return ERROR_OPT;      
@@ -114,7 +102,7 @@ int main(int argc, char *argv[])
     }
     const char *filename = param_store_filename.c_str();
     const uint8_t linktype = 0x94; // Assume SpacePacket
-    const int r_ret = sp.write_head(filename, linktype); 
+    const int r_ret = sp.write_head(filename, linktype); // 0:success, ERROR_PARAM, ERROR_LOG_FATAL, or ERROR_LOG_WARN.
     if ( r_ret ) {
       pcapnc_logerr(PROGNAME "file '%s' to store data could not be opend.\n",  filename);
       return ERROR_OPT;
@@ -124,8 +112,10 @@ int main(int argc, char *argv[])
 
   //// setup input/output files
 
-  pcapnc ip; const int i_ret = ip.read_nohead(stdin);   if ( i_ret ) return i_ret;
-  pcapnc op; const int o_ret = op.write_nohead(stdout); if ( o_ret ) return o_ret;
+  pcapnc ip; const int i_ret = ip.read_nohead(stdin); // 0:success or ERROR_LOG_WARN.
+  if ( i_ret != 0 ) return ERROR_OPT;
+  pcapnc op; const int o_ret = op.write_nohead(stdout); // 0:success or ERROR_LOG_WARN.
+  if ( o_ret != 0 ) return ERROR_OPT;
 
   ////
     
@@ -133,8 +123,11 @@ int main(int argc, char *argv[])
 
   while(1){
     ssize_t ret;
-    ret = ip.read_packet_header(input_buf, sizeof(input_buf), PROGNAME, "input"); if ( ret > 0 ) return ret; if ( ret < 0 ) return 0;
-    ret = ip.read_packet_data(input_buf, PROGNAME, "input"); if ( ret > 0 ) return ret;
+    ret = ip.read_packet_header(input_buf, sizeof(input_buf), PROGNAME, "input"); // 0:success, -1:end of input, or ERROR_LOG_FATAL 
+    if ( ret <  0 ) return 0; // end of input, withouog logging message
+    if ( ret >  0 ) return ERROR_RUN; 
+    ret = ip.read_packet_data(input_buf, PROGNAME, "input"); // 0:success or ERROR_LOG_FATAL.
+    if ( ret != 0 ) return ERROR_RUN;
 
     // simulate network
     const size_t num_path_address = rmap_num_path_address(input_buf + PACKET_HEADER_SIZE, ip.caplen);
@@ -153,23 +146,26 @@ int main(int argc, char *argv[])
         // generate RMAP READ Reply
         static uint8_t inpu2_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
         
-        ret = lp.read_packet_header(inpu2_buf, sizeof(inpu2_buf), PROGNAME, "send data"); if ( ret > 0 ) return ret; if ( ret < 0 ) return 0;
-        ret = lp.read_packet_data(inpu2_buf, PROGNAME, "send data"); if ( ret > 0 ) return ret;
+        ret = lp.read_packet_header(inpu2_buf, sizeof(inpu2_buf), PROGNAME, "send data"); // 0:success, -1:end of input, or ERROR_LOG_FATAL
+        if ( ret <  0 ) return 0; // end of input, withouog logging message
+        if ( ret >  0 ) return ERROR_RUN; 
+        ret = lp.read_packet_data(inpu2_buf, PROGNAME, "send data"); // 0:success or ERROR_LOG_FATAL.
+        if ( ret != 0 ) return ERROR_RUN;
         uint8_t     *inpbuf = inpu2_buf  + PACKET_HEADER_SIZE;
         const size_t inplen = lp.caplen;
 
         rmapc.generate_read_reply(inpbuf, inplen, rcvbuf, rcvlen, rplbuf, rpllen);
       }
-      ret = op.write_packet_record(ip.coarse_time, ip.nanosec, rplbuf, rpllen, PROGNAME, "output");
-      // TODO implement error check
+      ret = op.write_packet_record(ip.coarse_time, ip.nanosec, rplbuf, rpllen, PROGNAME, "output"); // 0:success or ERROR_LOG_FATAL.
+      if ( ret != 0 ) return ERROR_RUN;
     }
 
     if ( rmapc.is_write_channel() && store_rmap_write ){
       const uint8_t *outbuf; 
       size_t outlen;
       rmapc.validate_command(rcvbuf, rcvlen, outbuf, outlen); // extract Service Data Unit (e.g. Space Packet)
-      ret = sp.write_packet_record(ip.coarse_time, ip.nanosec, outbuf, outlen, PROGNAME, "store_data");
-      // TODO implement error check
+      ret = sp.write_packet_record(ip.coarse_time, ip.nanosec, outbuf, outlen, PROGNAME, "store_data"); // 0:success or ERROR_LOG_FATAL.
+      if ( ret != 0 ) return ERROR_RUN;
     } 
   }
   

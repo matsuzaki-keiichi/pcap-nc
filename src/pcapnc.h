@@ -1,10 +1,12 @@
 #include <stdio.h>
 #include <stdint.h>
 
+#if 0
 uint32_t pcapnc_extract_uint32(int exec_bswap, void *ptr);
 uint16_t pcapnc_extract_uint16(int exec_bswap, void *ptr);
 void     pcapnc_network_encode_uint32(void *ptr, uint32_t value);
 uint32_t pcapnc_network_decode_uint32(void *ptr);
+#endif
 
 #define pcapnc_logerr(...) fprintf(stderr, __VA_ARGS__)
 

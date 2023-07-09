@@ -1,1 +1,9 @@
+- Use C++ (object construction) only in the set up 
+- Use basically C in the repeated data transfer
+
 - Set size of the standard input/output to zero (at the begining of the C-programs).
+
+- in the main programs: catch errors which may be occurrs usage error
+- in the libraries: catch other errors with output of error log, either terminate or continuing processing depending upon criticallity
+
+- minimize number of memory copy
