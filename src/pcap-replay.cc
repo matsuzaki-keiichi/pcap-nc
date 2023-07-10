@@ -296,70 +296,21 @@ int main(int argc, char *argv[])
     }
 
     // generated output
+    size_t inplen = ip._caplen;
     if ( use_rmap_channel ) {
-#if 0      
-      static uint8_t trans_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
-
-      uint8_t       *cmdbuf = trans_buf + PACKET_HEADER_SIZE;
-      size_t         cmdlen = PACKET_DATA_MAX_SIZE;
-#endif      
-      size_t inplen = ip._caplen;
       if ( rmapc.is_write_channel() ){
         ret = pcap_rmapw_send(rmapc, wp, lp, inpbuf, inplen);
-#if 0        
-        const size_t inplen = ip._caplen;
-        // @ test-?????2?????-1*
-        ret =
-        rmapc.generate_write_command(inpbuf, inplen, cmdbuf, cmdlen); // 0:success or ERROR_LOG_FATAL.
-        if ( ret != 0 ) return ERROR_RUN;      
-#endif        
       } else {
         uint8_t       *outbuf;
         size_t         outlen;
         ret = pcap_rmapr_recv_record(rmapc, wp, lp, sp, inpbuf, inplen, outbuf, outlen );
-#if 0        
-        // @ test-?????2?????-2*
-        rmapc.generate_read_command(                 cmdbuf, cmdlen);
-      }
-      ret = wp.write_packet_record(trans_buf, cmdlen); // 0:success or ERROR_LOG_FATAL.
-#endif
       }      
     } else {
       // @ test-?????2?????
-      const size_t   inplen = ip._caplen;
       ret = pcap_ptp_send_record(wp, input_buf, inplen);
     }
     if ( ret != 0 ) return ERROR_RUN;
 
-#if 0
-    if ( use_rmap_reply ) {
-      // reuse - input_buf      
-      ret = lp.read_packet(inpbuf, PACKET_DATA_MAX_SIZE); // 0:success, -1:end of input, or ERROR_LOG_FATAL
-      if ( ret <  0 ) { // end of input, without logging message
-        // handle option '--after wait_sec' @ test-?????2?????-{14,15,23,24}*
-        s3sim_sleep(param_after_wtime); 
-        return 0; 
-      }
-      if ( ret >  0 ) return ERROR_RUN; 
-
-      // simulate network
-
-      const uint8_t *retbuf;
-      size_t         retlen,  inplen = (size_t) lp._caplen;
-      rmap_channel::remove_path_address(inpbuf, inplen, retbuf, retlen);
-
-      // check returned packet is expected
-
-      const uint8_t *outbuf;
-      size_t outlen;
-      rmapc.validate_reply(retbuf, retlen, outbuf, outlen); // extract Service Data Unit (e.g. Space Packet) for RMAP Read Reply
-
-      if ( rmapc.is_read_channel() && store_rmap_read ){
-        ret = sp.write_packet(outbuf, outlen); // 0:success or ERROR_LOG_FATAL.
-        if ( ret != 0 ) return ERROR_RUN;
-      }
-    }
-#endif    
   }  
   return 0;
 }
