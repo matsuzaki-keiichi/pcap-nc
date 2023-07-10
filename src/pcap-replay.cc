@@ -55,6 +55,91 @@ static struct option long_options[] = {
 #define ERROR_OPT 1
 #define ERROR_RUN 2
 
+int pcap_ptp_send_record(pcapnc &wp, uint8_t record_buf[], size_t packet_len){
+  return wp.write_packet_record(record_buf, packet_len); // 0:success or ERROR_LOG_FATAL.
+}
+
+// inplen = (size_t) lp._caplen
+
+int pcap_rmapw_send(class rmap_channel &rmapc, pcapnc &wp, pcapnc &lp, uint8_t inpbuf[], size_t inplen){
+  int ret;
+
+  static uint8_t trans_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
+
+  uint8_t       *cmdbuf = trans_buf + PACKET_HEADER_SIZE;
+  size_t         cmdlen = PACKET_DATA_MAX_SIZE;
+  if ( rmapc.is_write_channel() ){
+    // @ test-?????2?????-1*
+    ret =
+    rmapc.generate_write_command(inpbuf, inplen, cmdbuf, cmdlen); // 0:success or ERROR_LOG_FATAL.
+    if ( ret != 0 ) return ERROR_RUN;      
+  } else {
+    // @ test-?????2?????-2*
+    rmapc.generate_read_command(                 cmdbuf, cmdlen);
+  }
+  ret = wp.write_packet_record(trans_buf, cmdlen); // 0:success or ERROR_LOG_FATAL.
+  if ( ret != 0 ) return ERROR_RUN;
+
+  if ( use_rmap_reply ) {
+
+    // reuse - input_buf ... TODO buffer size should not be hard codede     
+    ret = lp.read_packet(inpbuf, PACKET_DATA_MAX_SIZE); // 0:success, -1:end of input, or ERROR_LOG_FATAL
+    if ( ret <  0 ) { // end of input, without logging message
+      // handle option '--after wait_sec' @ test-?????2?????-{14,15,23,24}*
+      s3sim_sleep(param_after_wtime); 
+      return 0; 
+    }
+    if ( ret >  0 ) return ERROR_RUN; 
+    inplen = lp._caplen;
+
+    // check returned packet is expected
+
+    if ( rmapc.is_read_channel() && store_rmap_read ){
+      // do nothing here
+    } else {
+      // simulate network
+      const uint8_t *retbuf;
+      size_t         retlen;
+      rmap_channel::remove_path_address(inpbuf, inplen, retbuf, retlen);
+
+#if 0
+for(int i=0;i<inplen;i++)
+fprintf(stderr,"%02x ", inpbuf[i]);
+fprintf(stderr,"\n");
+exit(1);
+#endif
+
+      const uint8_t *outbuf;
+      size_t outlen;
+      rmapc.validate_reply(retbuf, retlen, outbuf, outlen); // no output to outbuf is expected
+    }
+  }
+  return 0;
+}
+
+int pcap_rmapr_recv_record(class rmap_channel &rmapc, pcapnc &wp, pcapnc &lp, pcapnc &sp, uint8_t inpbuf[], size_t inplen, uint8_t outbuf[], size_t &outlen ){
+  int ret = pcap_rmapw_send(rmapc, wp, lp, inpbuf, inplen);
+  if ( ret != 0 ) return ERROR_RUN;
+
+  if ( use_rmap_reply ) {
+    if ( rmapc.is_read_channel() && store_rmap_read ){
+      // simulate network
+      const uint8_t *retbuf;
+      size_t         retlen;
+      rmap_channel::remove_path_address(inpbuf, inplen, retbuf, retlen);
+
+      const uint8_t *outbuf;
+      size_t outlen;
+      rmapc.validate_reply(retbuf, retlen, outbuf, outlen); // extract Service Data Unit (e.g. Space Packet) for RMAP Read Reply
+      ret = sp.write_packet(outbuf, outlen); // 0:success or ERROR_LOG_FATAL.
+      if ( ret != 0 ) return ERROR_RUN;
+    }
+  }
+
+  return 0;
+}
+ 
+
 int main(int argc, char *argv[])
 {
   //// parse options
@@ -212,28 +297,41 @@ int main(int argc, char *argv[])
 
     // generated output
     if ( use_rmap_channel ) {
+#if 0      
       static uint8_t trans_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
 
       uint8_t       *cmdbuf = trans_buf + PACKET_HEADER_SIZE;
       size_t         cmdlen = PACKET_DATA_MAX_SIZE;
+#endif      
+      size_t inplen = ip._caplen;
       if ( rmapc.is_write_channel() ){
+        ret = pcap_rmapw_send(rmapc, wp, lp, inpbuf, inplen);
+#if 0        
         const size_t inplen = ip._caplen;
         // @ test-?????2?????-1*
         ret =
         rmapc.generate_write_command(inpbuf, inplen, cmdbuf, cmdlen); // 0:success or ERROR_LOG_FATAL.
         if ( ret != 0 ) return ERROR_RUN;      
+#endif        
       } else {
+        uint8_t       *outbuf;
+        size_t         outlen;
+        ret = pcap_rmapr_recv_record(rmapc, wp, lp, sp, inpbuf, inplen, outbuf, outlen );
+#if 0        
         // @ test-?????2?????-2*
         rmapc.generate_read_command(                 cmdbuf, cmdlen);
       }
       ret = wp.write_packet_record(trans_buf, cmdlen); // 0:success or ERROR_LOG_FATAL.
+#endif
+      }      
     } else {
       // @ test-?????2?????
       const size_t   inplen = ip._caplen;
-      ret = wp.write_packet_record(input_buf, inplen); // 0:success or ERROR_LOG_FATAL.
+      ret = pcap_ptp_send_record(wp, input_buf, inplen);
     }
     if ( ret != 0 ) return ERROR_RUN;
 
+#if 0
     if ( use_rmap_reply ) {
       // reuse - input_buf      
       ret = lp.read_packet(inpbuf, PACKET_DATA_MAX_SIZE); // 0:success, -1:end of input, or ERROR_LOG_FATAL
@@ -261,6 +359,7 @@ int main(int argc, char *argv[])
         if ( ret != 0 ) return ERROR_RUN;
       }
     }
+#endif    
   }  
   return 0;
 }
