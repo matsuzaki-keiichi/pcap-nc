@@ -61,6 +61,25 @@ int pcap_ptp_send_record(pcapnc &wp, uint8_t record_buf[], size_t packet_len){
 
 // inplen = (size_t) lp._caplen
 
+int pcap_rmap_xxxx(class rmap_channel &rmapc, uint8_t inpbuf[], size_t inplen, const uint8_t *&outbuf, size_t &outlen){
+  // simulate network
+  const uint8_t *retbuf; size_t retlen;
+  rmap_channel::remove_path_address(inpbuf, inplen, retbuf, retlen);
+ 
+#if 0
+fprintf(stderr,"inplen=%zu\n", retlen);
+for(size_t i=0; i<retlen; i++) fprintf(stderr, "%02x ", retbuf[i]);
+fprintf(stderr,"\n");
+#endif
+  rmapc.validate_reply(retbuf, retlen, outbuf, outlen); // extract Service Data Unit (e.g. Space Packet) for RMAP Read Reply
+#if 0
+fprintf(stderr,"outlen=%zu\n", outlen);
+for(size_t i=0; i<outlen; i++) fprintf(stderr, "%02x ", outbuf[i]);
+fprintf(stderr,"\n");
+#endif
+  return 0;
+}
+
 int pcap_rmapw_send(class rmap_channel &rmapc, pcapnc &wp, pcapnc &lp, uint8_t inpbuf[], size_t inplen){
   int ret;
 
@@ -95,42 +114,34 @@ int pcap_rmapw_send(class rmap_channel &rmapc, pcapnc &wp, pcapnc &lp, uint8_t i
     // check returned packet is expected
 
     if ( rmapc.is_read_channel() && store_rmap_read ){
-      // do nothing here
+      // do nothing
     } else {
-      // simulate network
-      const uint8_t *retbuf;
-      size_t         retlen;
-      rmap_channel::remove_path_address(inpbuf, inplen, retbuf, retlen);
-
-#if 0
-for(int i=0;i<inplen;i++)
-fprintf(stderr,"%02x ", inpbuf[i]);
-fprintf(stderr,"\n");
-exit(1);
-#endif
-
-      const uint8_t *outbuf;
-      size_t outlen;
-      rmapc.validate_reply(retbuf, retlen, outbuf, outlen); // no output to outbuf is expected
+      const uint8_t *outbuf; size_t outlen;
+      pcap_rmap_xxxx(rmapc, inpbuf, inplen, outbuf, outlen);
     }
   }
   return 0;
 }
 
-int pcap_rmapr_recv_record(class rmap_channel &rmapc, pcapnc &wp, pcapnc &lp, pcapnc &sp, uint8_t inpbuf[], size_t inplen, uint8_t outbuf[], size_t &outlen ){
+int pcap_rmapr_recv_record(class rmap_channel &rmapc, pcapnc &wp, pcapnc &lp, pcapnc &sp, uint8_t inpbuf[], size_t inplen, const uint8_t *&outbuf, size_t &outlen ){
   int ret = pcap_rmapw_send(rmapc, wp, lp, inpbuf, inplen);
   if ( ret != 0 ) return ERROR_RUN;
 
   if ( use_rmap_reply ) {
     if ( rmapc.is_read_channel() && store_rmap_read ){
-      // simulate network
-      const uint8_t *retbuf;
-      size_t         retlen;
-      rmap_channel::remove_path_address(inpbuf, inplen, retbuf, retlen);
-
-      const uint8_t *outbuf;
-      size_t outlen;
-      rmapc.validate_reply(retbuf, retlen, outbuf, outlen); // extract Service Data Unit (e.g. Space Packet) for RMAP Read Reply
+    inplen = lp._caplen;
+#if 0    
+fprintf(stderr,"inplen=%zu\n", inplen);
+for(size_t i=0; i<inplen; i++) fprintf(stderr, "%02x ", inpbuf[i]);
+fprintf(stderr,"\n");
+#endif
+      pcap_rmap_xxxx(rmapc, inpbuf, inplen, outbuf, outlen);
+#if 0      
+fprintf(stderr,"outlen=%zu\n", outlen);
+for(size_t i=0; i<outlen; i++) fprintf(stderr, "%02x ", outbuf[i]);
+fprintf(stderr,"\n");
+exit(1);
+#endif
       ret = sp.write_packet(outbuf, outlen); // 0:success or ERROR_LOG_FATAL.
       if ( ret != 0 ) return ERROR_RUN;
     }
@@ -301,7 +312,7 @@ int main(int argc, char *argv[])
       if ( rmapc.is_write_channel() ){
         ret = pcap_rmapw_send(rmapc, wp, lp, inpbuf, inplen);
       } else {
-        uint8_t       *outbuf;
+        const uint8_t       *outbuf;
         size_t         outlen;
         ret = pcap_rmapr_recv_record(rmapc, wp, lp, sp, inpbuf, inplen, outbuf, outlen );
       }      
