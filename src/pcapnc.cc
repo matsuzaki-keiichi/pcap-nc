@@ -50,7 +50,7 @@ size_t pcapnc::read(void *buf, size_t nmemb){
   return nmemb - remaining_nmemb;
 }
 
-size_t pcapnc::write(const void *buf, size_t nmemb){
+size_t pcapnc::write(const void *buf, size_t nmemb) const {
   size_t remaining_nmemb = nmemb;
   ssize_t ret;
   while ( remaining_nmemb > 0 ) {
@@ -266,8 +266,6 @@ int pcapnc::read_packet_data(uint8_t inpbuf[], size_t inplen){
   return 0;
 }
 
-static uint8_t inner_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
-
 /**
   @param inpbuf [in] buffer of record
   @param inplen [in] size of recorde_buffer, should be equal or larger than the record size
@@ -281,17 +279,37 @@ int pcapnc::read_packet(uint8_t inpbuf[], size_t inplen){
     return ret;
 }
 
+static uint8_t inner_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
+
 /**
-  @param outpt_buf   [in/out]
-  Note: if this parameter is not NULL, Packet Data field in outpt_buf shall be set by user.
-  Note: Packet Header in outpt_buf is updated by this method.
-  @param outbuf      [in] content of Packet Data field
-  Note: if this parameter is not NULL, Packet Data field is constructed by this method.
-  Note: either outpt_bur or out_buf shall be NULL
+  @param outbuf      [in] Packet Data
+  Note: Packet Data field is copied by this method into the internal buffer.
   @param outlen      [in] length of Packet Data field
   @return 0:success or ERROR_LOG_FATAL.
 */
-int pcapnc::write_packet_record(uint8_t outpt_buf[], const uint8_t outbuf[], size_t outlen){
+int pcapnc::write_packet(const uint8_t outbuf[], size_t outlen) const {
+
+  uint8_t *const outpt_buf = inner_buf;
+
+  if ( outlen > PACKET_DATA_MAX_SIZE ) {
+    pcapnc_logerr("%s: Too large packet size for %s (=0x%zu)).\n", 
+                   pcapnc::_progname.c_str(), this->_source_name, outlen);
+    return ERROR_LOG_FATAL;
+  }
+  memcpy(outpt_buf+PACKET_HEADER_SIZE, outbuf, outlen);
+  
+  return this->write_packet_record(outpt_buf, outlen);
+}
+
+/**
+  @param outpt_buf   [in/out] Buffer for PCAP Reacord (i.e. Packet Header + Packet Data)
+  Note: Packet Data field in outpt_buf shall be set by user, which minimizes number of copy. 
+  Note: Packet Header in outpt_buf is updated by this method.
+  @param outlen      [in] length of Packet Data field
+  @return 0:success or ERROR_LOG_FATAL.
+*/
+
+int pcapnc::write_packet_record(uint8_t outpt_buf[], size_t outlen) const {
   uint32_t coarse_time;
   uint32_t nanosec;
 
@@ -311,25 +329,14 @@ int pcapnc::write_packet_record(uint8_t outpt_buf[], const uint8_t outbuf[], siz
     }
   }
 
-  uint8_t *const trans_buf = (outpt_buf == NULL) ? inner_buf : outpt_buf;
+  pcapnc_network_encode_uint32(outpt_buf+ 0, coarse_time);
+  pcapnc_network_encode_uint32(outpt_buf+ 4, nanosec);
+  pcapnc_network_encode_uint32(outpt_buf+ 8, outlen);
+  pcapnc_network_encode_uint32(outpt_buf+12, outlen);
 
-  pcapnc_network_encode_uint32(trans_buf+ 0, coarse_time);
-  pcapnc_network_encode_uint32(trans_buf+ 4, nanosec);
-  pcapnc_network_encode_uint32(trans_buf+ 8, outlen);
-  pcapnc_network_encode_uint32(trans_buf+12, outlen);
-
-  if (outpt_buf == NULL) {
-    if ( outlen > PACKET_DATA_MAX_SIZE ) {
-      pcapnc_logerr("%s: Too large packet size for %s (=0x%zu)).\n", 
-                     pcapnc::_progname.c_str(), this->_source_name, outlen);
-      return ERROR_LOG_FATAL;
-    }
-    memcpy(trans_buf+PACKET_HEADER_SIZE, outbuf, outlen);
-  }
-
-  const size_t trans_len = PACKET_HEADER_SIZE + outlen;
-  const size_t reslt_len = this->write(trans_buf, trans_len);
-  if ( reslt_len != trans_len ) {
+  const size_t outpt_len = PACKET_HEADER_SIZE + outlen;
+  const size_t reslt_len = this->write(outpt_buf, outpt_len);
+  if ( reslt_len != outpt_len ) {
     pcapnc_logerr("%s: Fails to output '%s' (partial packet data).\n", 
                    pcapnc::_progname.c_str(), this->_source_name);
     return ERROR_LOG_FATAL;

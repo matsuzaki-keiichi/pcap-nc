@@ -20,7 +20,7 @@ class pcapnc {
 
   private:
   size_t read(void *buf, size_t nmemb);
-  size_t write(const void *buf, size_t nmemb);
+  size_t write(const void *buf, size_t nmemb) const ;
 
   public:
   static void init_class(char *argv0);
@@ -49,10 +49,9 @@ private:
 
 public:
   int read_packet(uint8_t inp_buf[], size_t inp_len);
-  int write_packet_record(uint8_t outot_buf[], const uint8_t outbuf[], size_t outlen);
-  inline int write_packet_record(const uint8_t outbuf[], size_t outlen){
-    return this->write_packet_record(NULL, outbuf, outlen);
-  }
+
+  int write_packet_record(uint8_t outpt_buf[], size_t outlen) const; 
+  int write_packet(const uint8_t outbuf[], size_t outlen) const;
 
   uint16_t extract_uint16(void *ptr);
   uint32_t extract_uint32(void *ptr);

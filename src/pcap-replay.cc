@@ -226,11 +226,11 @@ int main(int argc, char *argv[])
         // @ test-?????2?????-2*
         rmapc.generate_read_command(                 cmdbuf, cmdlen);
       }
-      ret = wp.write_packet_record(trans_buf, NULL, cmdlen); // 0:success or ERROR_LOG_FATAL.
+      ret = wp.write_packet_record(trans_buf, cmdlen); // 0:success or ERROR_LOG_FATAL.
     } else {
       // @ test-?????2?????
       const size_t   inplen = ip._caplen;
-      ret = wp.write_packet_record(input_buf, NULL, inplen); // 0:success or ERROR_LOG_FATAL.
+      ret = wp.write_packet_record(input_buf, inplen); // 0:success or ERROR_LOG_FATAL.
     }
     if ( ret != 0 ) return ERROR_RUN;
 
@@ -257,7 +257,7 @@ int main(int argc, char *argv[])
       rmapc.validate_reply(retbuf, retlen, outbuf, outlen); // extract Service Data Unit (e.g. Space Packet) for RMAP Read Reply
 
       if ( rmapc.is_read_channel() && store_rmap_read ){
-        ret = sp.write_packet_record(outbuf, outlen); // 0:success or ERROR_LOG_FATAL.
+        ret = sp.write_packet(outbuf, outlen); // 0:success or ERROR_LOG_FATAL.
         if ( ret != 0 ) return ERROR_RUN;
       }
     }

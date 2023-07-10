@@ -154,7 +154,7 @@ int main(int argc, char *argv[])
         rmapc.generate_read_reply(in2buf, in2len, rcvbuf, rcvlen, rplbuf, rpllen); // 0:success or ERROR_LOG_FATAL.
         if ( ret != 0 ) return ERROR_RUN;      
       }
-      ret = op.write_packet_record(rplbuf, rpllen); // 0:success or ERROR_LOG_FATAL.
+      ret = op.write_packet(rplbuf, rpllen); // 0:success or ERROR_LOG_FATAL.
       if ( ret != 0 ) return ERROR_RUN;
     }
 
@@ -162,7 +162,7 @@ int main(int argc, char *argv[])
       const uint8_t *outbuf; 
       size_t outlen;
       rmapc.validate_command(rcvbuf, rcvlen, outbuf, outlen); // extract Service Data Unit (e.g. Space Packet)
-      ret = sp.write_packet_record(outbuf, outlen); // 0:success or ERROR_LOG_FATAL.
+      ret = sp.write_packet(outbuf, outlen); // 0:success or ERROR_LOG_FATAL.
       if ( ret != 0 ) return ERROR_RUN;
     } 
   }
