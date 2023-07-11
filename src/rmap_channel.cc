@@ -384,9 +384,9 @@ int rmap_channel::generate_read_reply(const uint8_t inpbuf[], size_t inplen, con
 /**
   @param rcvbuf [in]
   @param rcvlen [in]
-  @param outbuf [out]
+  @param outbuf [out] rcvbuf..rcvbuf+recvlen or NULL
    Note: NULL for a read channel.
-  @param outlen [in,out]
+  @param outlen [in,out] 0..rcvlen
    Note: 0 for a read channel.
  */
 
@@ -572,8 +572,8 @@ void rmap_channel::validate_reply(const uint8_t rcvbuf[], size_t rcvlen, const u
 /**
   @param inpbuf [in]
   @param inplen [in]
-  @param outbuf [out]
-  @param outlen [out]
+  @param outbuf [out] inpbuf..inpbuf+inplen
+  @param outlen [out] 0..inplen
  */
 
 void rmap_channel::remove_path_address(const uint8_t inpbuf[], size_t inplen,   const uint8_t *&outbuf,   size_t &outlen) {

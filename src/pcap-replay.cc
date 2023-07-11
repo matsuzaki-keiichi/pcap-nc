@@ -59,98 +59,99 @@ int pcap_ptp_send_record(pcapnc &wp, uint8_t record_buf[], size_t packet_len){
   return wp.write_packet_record(record_buf, packet_len); // 0:success or ERROR_LOG_FATAL.
 }
 
-// inplen = (size_t) lp._caplen
+/**
+  @param repbuf [in]
+  @param replen [in]
+  @param outbuf [out] repbuf..repbuf+replen or NULL
+   Note: NULL for a read channel.
+  @param outlen [in,out] 0..replen
+   Note: 0 for a read channel.
+ */
 
-int pcap_rmap_xxxx(class rmap_channel &rmapc, uint8_t inpbuf[], size_t inplen, const uint8_t *&outbuf, size_t &outlen){
+int pcap_rmap_read_and_extract_sdu(class rmap_channel &rmapc, pcapnc &lp, uint8_t repbuf[], const size_t repsiz, uint8_t *&outbuf, size_t &outlen){
+  const int ret = lp.read_packet(repbuf, repsiz); // 0:success, -1:end of input, or ERROR_LOG_FATAL
+  if ( ret < 0 ) { // end of input, without logging message
+    // handle option '--after wait_sec' @ test-?????2?????-{14,15,23,24}*
+    s3sim_sleep(param_after_wtime); 
+    return -1; 
+  }
+  if ( ret > 0 ) return ERROR_RUN; 
+
   // simulate network
-  const uint8_t *retbuf; size_t retlen;
-  rmap_channel::remove_path_address(inpbuf, inplen, retbuf, retlen);
+  const uint8_t *retbuf, *tmpbuf; 
+  size_t   retlen, replen = lp._caplen;
+  rmap_channel::remove_path_address(repbuf, replen, retbuf, retlen);
+  rmapc.validate_reply(retbuf, retlen, tmpbuf, outlen); // extract Service Data Unit (e.g. Space Packet) for RMAP Read Reply
+  outbuf = (uint8_t *) tmpbuf;
+  return 0;
  
 #if 0
 fprintf(stderr,"inplen=%zu\n", retlen);
 for(size_t i=0; i<retlen; i++) fprintf(stderr, "%02x ", retbuf[i]);
 fprintf(stderr,"\n");
-#endif
-  rmapc.validate_reply(retbuf, retlen, outbuf, outlen); // extract Service Data Unit (e.g. Space Packet) for RMAP Read Reply
-#if 0
 fprintf(stderr,"outlen=%zu\n", outlen);
 for(size_t i=0; i<outlen; i++) fprintf(stderr, "%02x ", outbuf[i]);
 fprintf(stderr,"\n");
 #endif
-  return 0;
 }
 
-int pcap_rmapw_send(class rmap_channel &rmapc, pcapnc &wp, pcapnc &lp, uint8_t inpbuf[], size_t inplen){
-  int ret;
+/**
+  @param rmapc  [ref]
+  @param wp     [ref]
+  @param lp     [ref]
+  @param inpbuf [in]
+  @param inplen [in]
+*/
+int pcap_rmapw_send(class rmap_channel &rmapc, pcapnc &wp, pcapnc &lp, const uint8_t inpbuf[], size_t inplen){
 
   static uint8_t trans_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
+  uint8_t *cmdbuf = trans_buf + PACKET_HEADER_SIZE;
+  size_t   cmdlen = PACKET_DATA_MAX_SIZE;
 
-  uint8_t       *cmdbuf = trans_buf + PACKET_HEADER_SIZE;
-  size_t         cmdlen = PACKET_DATA_MAX_SIZE;
-  if ( rmapc.is_write_channel() ){
-    // @ test-?????2?????-1*
-    ret =
-    rmapc.generate_write_command(inpbuf, inplen, cmdbuf, cmdlen); // 0:success or ERROR_LOG_FATAL.
-    if ( ret != 0 ) return ERROR_RUN;      
-  } else {
-    // @ test-?????2?????-2*
-    rmapc.generate_read_command(                 cmdbuf, cmdlen);
-  }
+  int ret =
+  rmapc.generate_write_command(inpbuf, inplen, cmdbuf, cmdlen); // 0:success or ERROR_LOG_FATAL.
+  if ( ret != 0 ) return ERROR_RUN;      
+
   ret = wp.write_packet_record(trans_buf, cmdlen); // 0:success or ERROR_LOG_FATAL.
   if ( ret != 0 ) return ERROR_RUN;
 
   if ( use_rmap_reply ) {
-
-    // reuse - input_buf ... TODO buffer size should not be hard codede     
-    ret = lp.read_packet(inpbuf, PACKET_DATA_MAX_SIZE); // 0:success, -1:end of input, or ERROR_LOG_FATAL
-    if ( ret <  0 ) { // end of input, without logging message
-      // handle option '--after wait_sec' @ test-?????2?????-{14,15,23,24}*
-      s3sim_sleep(param_after_wtime); 
-      return 0; 
-    }
-    if ( ret >  0 ) return ERROR_RUN; 
-    inplen = lp._caplen;
-
-    // check returned packet is expected
-
-    if ( rmapc.is_read_channel() && store_rmap_read ){
-      // do nothing
-    } else {
-      const uint8_t *outbuf; size_t outlen;
-      pcap_rmap_xxxx(rmapc, inpbuf, inplen, outbuf, outlen);
-    }
+    // reuse - trans_buf
+    uint8_t *const repbuf = trans_buf + PACKET_HEADER_SIZE; uint8_t *outbuf;
+    const uint8_t  replen = PACKET_HEADER_SIZE;             size_t   outlen;
+    pcap_rmap_read_and_extract_sdu(rmapc, lp, repbuf, replen, outbuf, outlen);
   }
   return 0;
 }
 
-int pcap_rmapr_recv_record(class rmap_channel &rmapc, pcapnc &wp, pcapnc &lp, pcapnc &sp, uint8_t inpbuf[], size_t inplen, const uint8_t *&outbuf, size_t &outlen ){
-  int ret = pcap_rmapw_send(rmapc, wp, lp, inpbuf, inplen);
+/**
+  @param rmapc      [ref]
+  @param wp         [ref]
+  @param lp         [ref]
+  @param outbuf     [in/out] outbuf .. outbuf + outlen
+  @param outlen     [in/out] 0 .. outlen
+*/
+int pcap_rmapr_recv(class rmap_channel &rmapc, pcapnc &wp, pcapnc &lp, uint8_t *&outbuf, size_t &outlen ){
+
+  static uint8_t trans_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
+  uint8_t *cmdbuf = trans_buf + PACKET_HEADER_SIZE;
+  size_t   cmdlen = PACKET_DATA_MAX_SIZE;
+
+  // @ test-?????2?????-2*
+  rmapc.generate_read_command(cmdbuf, cmdlen);
+  const int ret = wp.write_packet_record(trans_buf, cmdlen); // 0:success or ERROR_LOG_FATAL.
   if ( ret != 0 ) return ERROR_RUN;
 
   if ( use_rmap_reply ) {
-    if ( rmapc.is_read_channel() && store_rmap_read ){
-    inplen = lp._caplen;
-#if 0    
-fprintf(stderr,"inplen=%zu\n", inplen);
-for(size_t i=0; i<inplen; i++) fprintf(stderr, "%02x ", inpbuf[i]);
-fprintf(stderr,"\n");
-#endif
-      pcap_rmap_xxxx(rmapc, inpbuf, inplen, outbuf, outlen);
-#if 0      
-fprintf(stderr,"outlen=%zu\n", outlen);
-for(size_t i=0; i<outlen; i++) fprintf(stderr, "%02x ", outbuf[i]);
-fprintf(stderr,"\n");
-exit(1);
-#endif
-      ret = sp.write_packet(outbuf, outlen); // 0:success or ERROR_LOG_FATAL.
-      if ( ret != 0 ) return ERROR_RUN;
-    }
+    // reuse - trans_buf
+    uint8_t *repbuf = outbuf;
+    size_t   replen = outlen;
+    pcap_rmap_read_and_extract_sdu(rmapc, lp, repbuf, replen, outbuf, outlen);
   }
 
   return 0;
 }
  
-
 int main(int argc, char *argv[])
 {
   //// parse options
@@ -312,9 +313,16 @@ int main(int argc, char *argv[])
       if ( rmapc.is_write_channel() ){
         ret = pcap_rmapw_send(rmapc, wp, lp, inpbuf, inplen);
       } else {
-        const uint8_t       *outbuf;
-        size_t         outlen;
-        ret = pcap_rmapr_recv_record(rmapc, wp, lp, sp, inpbuf, inplen, outbuf, outlen );
+        uint8_t  tmpbuf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
+        uint8_t *outbuf = tmpbuf;
+        size_t   outlen = sizeof(tmpbuf);
+        ret = pcap_rmapr_recv(rmapc, wp, lp, outbuf, outlen);
+        if ( use_rmap_reply ) {
+          if ( store_rmap_read ){
+            ret = sp.write_packet(outbuf, outlen); // 0:success or ERROR_LOG_FATAL.
+            if ( ret != 0 ) return ERROR_RUN;
+          }
+        }
       }      
     } else {
       // @ test-?????2?????
