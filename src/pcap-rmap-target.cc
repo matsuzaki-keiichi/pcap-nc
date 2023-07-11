@@ -32,6 +32,71 @@ static struct option long_options[] = {
 #define ERROR_OPT 1
 #define ERROR_RUN 2
 
+int pcap_rmapr_send(class rmap_channel &rmapc, pcapnc &ip, pcapnc &op, const uint8_t inpbuf[], size_t  inplen)
+{
+  int ret;
+
+  static uint8_t cmdbuf[PACKET_DATA_MAX_SIZE];
+  size_t         cmdlen = sizeof(cmdbuf);
+  ret = ip.read_packet(cmdbuf, cmdlen); // 0:success, -1:end of input, or ERROR_LOG_FATAL 
+  if ( ret < 0 ) return -1; // end of input, withouog logging message
+  if ( ret > 0 ) return ERROR_RUN; 
+
+  // simulate network
+  const uint8_t *rcvbuf = cmdbuf;
+  size_t         rcvlen = ip._caplen;
+  rmap_channel::remove_path_address(rcvbuf, rcvlen);
+
+  uint8_t rplbuf[PACKET_DATA_MAX_SIZE]; 
+  size_t  rpllen = sizeof(rplbuf);
+
+  // generate RMAP READ Reply
+  ret = 
+  rmapc.generate_read_reply(inpbuf, inplen, rcvbuf, rcvlen, rplbuf, rpllen); // 0:success or ERROR_LOG_FATAL.
+  if ( ret != 0 ) return ERROR_RUN;      
+
+  ret = op.write_packet(rplbuf, rpllen); // 0:success or ERROR_LOG_FATAL.
+  if ( ret != 0 ) return ERROR_RUN;
+
+  return 0;
+}
+
+int pcap_rmapw_recv(class rmap_channel &rmapc, pcapnc &ip, pcapnc &op, uint8_t *&outbuf, size_t &outlen)
+{
+  int ret;
+
+  static uint8_t *cmdbuf = outbuf;
+  size_t          cmdlen = outlen;
+  ret = ip.read_packet(cmdbuf, cmdlen); // 0:success, -1:end of input, or ERROR_LOG_FATAL 
+  if ( ret < 0 ) return -1; // end of input, withouog logging message
+  if ( ret > 0 ) return ERROR_RUN; 
+
+  // simulate network
+  const uint8_t *rcvbuf = cmdbuf;
+  size_t         rcvlen = ip._caplen;
+  rmap_channel::remove_path_address(rcvbuf, rcvlen);
+
+  // generate output
+  if ( rmapc.has_responces() ) {
+    uint8_t rplbuf[PACKET_DATA_MAX_SIZE]; 
+    size_t  rpllen = sizeof(rplbuf);
+
+    // generate RMAP Write Reply
+    rmapc.generate_write_reply(rcvbuf, rcvlen, rplbuf, rpllen);
+
+    ret = op.write_packet(rplbuf, rpllen); // 0:success or ERROR_LOG_FATAL.
+    if ( ret != 0 ) return ERROR_RUN;
+  }
+
+  const uint8_t *tmpbuf;
+  rmapc.validate_command(rcvbuf, rcvlen, tmpbuf, outlen); // extract Service Data Unit (e.g. Space Packet)
+  outbuf = (/*non const*/ uint8_t *) tmpbuf;
+
+  return 0;
+}
+
+
+
 int main(int argc, char *argv[])
 {
   pcapnc::init_class(argv[0]);
@@ -120,14 +185,40 @@ int main(int argc, char *argv[])
 
   ////
     
-  static uint8_t inpbuf[PACKET_DATA_MAX_SIZE];
 
   while(1){
     ssize_t ret;
-    ret = ip.read_packet(inpbuf, sizeof(inpbuf)); // 0:success, -1:end of input, or ERROR_LOG_FATAL 
-    if ( ret <  0 ) return 0; // end of input, withouog logging message
-    if ( ret >  0 ) return ERROR_RUN; 
 
+    static uint8_t inpbuf[PACKET_DATA_MAX_SIZE];
+    if ( use_rmaprd_rpl ) {
+      // generate RMAP READ Reply
+        
+      ret = lp.read_packet(inpbuf, sizeof(inpbuf)); // 0:success, -1:end of input, or ERROR_LOG_FATAL
+      if ( ret <  0 ) return 0; // end of input, withouog logging message
+      if ( ret >  0 ) return ERROR_RUN; 
+      const size_t inplen = lp._caplen;
+
+      int ret = pcap_rmapr_send(rmapc, ip, op, inpbuf, inplen);
+      if ( ret <  0 ) return 0; // end of input, withouog logging message
+      if ( ret >  0 ) return ERROR_RUN; 
+
+    } else {
+
+      // not only rmap_write_channek but also rmap_read_channel may here ... 
+
+      uint8_t *outbuf = inpbuf; 
+      size_t   outlen = sizeof(inpbuf);
+      int ret = pcap_rmapw_recv(rmapc, ip, op, outbuf, outlen);
+      if ( ret <  0 ) return 0; // end of input, withouog logging message
+      if ( ret >  0 ) return ERROR_RUN; 
+
+      if ( rmapc.is_write_channel() && store_rmap_write ){
+        ret = sp.write_packet(outbuf, outlen); // 0:success or ERROR_LOG_FATAL.
+        if ( ret != 0 ) return ERROR_RUN;
+      }
+    }
+
+#if 0
     // simulate network
     const uint8_t *rcvbuf = inpbuf;
     size_t         rcvlen = (size_t) ip._caplen;
@@ -165,6 +256,7 @@ int main(int argc, char *argv[])
       ret = sp.write_packet(outbuf, outlen); // 0:success or ERROR_LOG_FATAL.
       if ( ret != 0 ) return ERROR_RUN;
     } 
+#endif
   }
   
   return 0;
