@@ -51,8 +51,15 @@ static struct option long_options[] = {
 #define ERROR_OPT 1
 #define ERROR_RUN 2
 
-int pcap_ptp_send_record(pcapnc &wp, uint8_t record_buf[], size_t packet_len){
-  return wp.write_packet_record(record_buf, packet_len); // 0:success or ERROR_LOG_FATAL.
+/**
+  @param wp
+  @param outpt_buf   [in/out] Buffer for PCAP Reacord (i.e. Packet Header + Packet Data)
+  Note: Packet Data field in outpt_buf shall be set by user, which minimizes number of copy. 
+  Note: Packet Header in outpt_buf is updated by this method.
+  @param outlen      [in] length of Packet Data field
+*/
+int pcap_ptp_send_record(pcapnc &wp, uint8_t outpt_buf[], size_t outlen){
+  return wp.write_packet_record(outpt_buf, outlen); // 0:success or ERROR_LOG_FATAL.
 }
 
 /**
@@ -79,7 +86,7 @@ int pcap_rmap_read_and_extract_sdu(class rmap_channel &rmapc, pcapnc &lp, uint8_
   size_t   replen = lp._caplen;
   rmap_channel::remove_path_address(tmpbuf, replen);
   rmapc.validate_reply(tmpbuf, replen, tmpbuf, outlen); // extract Service Data Unit (e.g. Space Packet) for RMAP Read Reply
-  outbuf = (uint8_t *) tmpbuf;
+  outbuf = (/*non const*/ uint8_t *) tmpbuf;
   return 0;
  
 #if 0
@@ -102,8 +109,8 @@ fprintf(stderr,"\n");
 int pcap_rmapw_send(class rmap_channel &rmapc, pcapnc &wp, pcapnc *lpp, const uint8_t inpbuf[], size_t inplen){
 
   static uint8_t trans_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
-  uint8_t *cmdbuf = trans_buf + PACKET_HEADER_SIZE;
-  size_t   cmdlen = PACKET_DATA_MAX_SIZE;
+  uint8_t *const cmdbuf = trans_buf + PACKET_HEADER_SIZE;
+  size_t         cmdlen = PACKET_DATA_MAX_SIZE;
 
   int ret =
   rmapc.generate_write_command(inpbuf, inplen, cmdbuf, cmdlen); // 0:success or ERROR_LOG_FATAL.
@@ -113,7 +120,7 @@ int pcap_rmapw_send(class rmap_channel &rmapc, pcapnc &wp, pcapnc *lpp, const ui
   if ( ret != 0 ) return ERROR_RUN;
 
   if ( lpp != NULL ) {
-    // reuse - trans_buf
+    // reuse - trans_buf, which will not be used 
     uint8_t *outbuf = trans_buf + PACKET_HEADER_SIZE;
     size_t   outlen = PACKET_DATA_MAX_SIZE;
     ret = pcap_rmap_read_and_extract_sdu(rmapc, *lpp, outbuf, outlen);
@@ -131,8 +138,8 @@ int pcap_rmapw_send(class rmap_channel &rmapc, pcapnc &wp, pcapnc *lpp, const ui
 int pcap_rmapr_recv(class rmap_channel &rmapc, pcapnc &wp, pcapnc *lpp, uint8_t *&outbuf, size_t &outlen ){
 
   static uint8_t trans_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
-  uint8_t *cmdbuf = trans_buf + PACKET_HEADER_SIZE;
-  size_t   cmdlen = PACKET_DATA_MAX_SIZE;
+  uint8_t *const cmdbuf = trans_buf + PACKET_HEADER_SIZE;
+  size_t         cmdlen = PACKET_DATA_MAX_SIZE;
 
   // @ test-?????2?????-2*
   rmapc.generate_read_command(cmdbuf, cmdlen);

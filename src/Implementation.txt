@@ -25,3 +25,8 @@ Design Note:
   - ERROR_LOG_WARN  ... error is logged by the libraries, caller may continue processing 
 
 - Set size of the standard input/output to zero (at the initialization of each input/output).
+
+Naming Convention
+- xxxbuf, xxxlen       ... buffer and length of PCAP Packet Data
+- xxxxx_buf, xxxxx_len ... buffer and length of PCAP Packet Record
+
