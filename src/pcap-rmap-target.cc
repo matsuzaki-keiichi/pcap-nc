@@ -129,9 +129,9 @@ int main(int argc, char *argv[])
     if ( ret >  0 ) return ERROR_RUN; 
 
     // simulate network
-    const uint8_t *rcvbuf;
-    size_t         rcvlen,  inplen = (size_t) ip._caplen;
-    rmap_channel::remove_path_address(inpbuf, inplen, rcvbuf, rcvlen);
+    const uint8_t *rcvbuf = inpbuf;
+    size_t         rcvlen = (size_t) ip._caplen;
+    rmap_channel::remove_path_address(rcvbuf, rcvlen);
 
     // generate output
     if ( rmapc.has_responces() ) {

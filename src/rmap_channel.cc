@@ -570,16 +570,14 @@ void rmap_channel::validate_reply(const uint8_t rcvbuf[], size_t rcvlen, const u
 }
 
 /**
-  @param inpbuf [in]
-  @param inplen [in]
-  @param outbuf [out] inpbuf..inpbuf+inplen
-  @param outlen [out] 0..inplen
+  @param spwbuf [in/out] spwbuf..spwbuf+spwlen
+  @param spwlen [in/out] 0..spwlen
  */
 
-void rmap_channel::remove_path_address(const uint8_t inpbuf[], size_t inplen,   const uint8_t *&outbuf,   size_t &outlen) {
-    const size_t num_path_address = rmap_channel::rmap_num_path_address(inpbuf, inplen);
-    outbuf = inpbuf + num_path_address; 
-    outlen = inplen - num_path_address;
+void rmap_channel::remove_path_address( const uint8_t *&spwbuf,   size_t &spwlen) {
+    const size_t num_path_address = rmap_channel::rmap_num_path_address(spwbuf, spwlen);
+    spwbuf = spwbuf + num_path_address; 
+    spwlen = spwlen - num_path_address;
 }
 
 // #define DEBUG

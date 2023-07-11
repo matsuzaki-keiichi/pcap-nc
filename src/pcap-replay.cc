@@ -23,10 +23,6 @@
 #define debug_fprintf
 #endif
 
-static int use_rmap_channel = 0;
-static int use_rmap_reply   = 0;
-static int store_rmap_read  = 0;
-
 static double      param_after_wtime    =  0.0;
 static double      param_before_wtime   =  0.0;
 static double      param_interval_sec   = -1.0;
@@ -60,15 +56,16 @@ int pcap_ptp_send_record(pcapnc &wp, uint8_t record_buf[], size_t packet_len){
 }
 
 /**
-  @param repbuf [in]
-  @param replen [in]
-  @param outbuf [out] repbuf..repbuf+replen or NULL
+  @param outbuf [in,out] repbuf..repbuf+replen or NULL
    Note: NULL for a read channel.
   @param outlen [in,out] 0..replen
    Note: 0 for a read channel.
  */
 
-int pcap_rmap_read_and_extract_sdu(class rmap_channel &rmapc, pcapnc &lp, uint8_t repbuf[], const size_t repsiz, uint8_t *&outbuf, size_t &outlen){
+int pcap_rmap_read_and_extract_sdu(class rmap_channel &rmapc, pcapnc &lp, uint8_t *&outbuf, size_t &outlen){
+  uint8_t *repbuf = outbuf;
+  size_t   repsiz = outlen; 
+
   const int ret = lp.read_packet(repbuf, repsiz); // 0:success, -1:end of input, or ERROR_LOG_FATAL
   if ( ret < 0 ) { // end of input, without logging message
     // handle option '--after wait_sec' @ test-?????2?????-{14,15,23,24}*
@@ -78,10 +75,10 @@ int pcap_rmap_read_and_extract_sdu(class rmap_channel &rmapc, pcapnc &lp, uint8_
   if ( ret > 0 ) return ERROR_RUN; 
 
   // simulate network
-  const uint8_t *retbuf, *tmpbuf; 
-  size_t   retlen, replen = lp._caplen;
-  rmap_channel::remove_path_address(repbuf, replen, retbuf, retlen);
-  rmapc.validate_reply(retbuf, retlen, tmpbuf, outlen); // extract Service Data Unit (e.g. Space Packet) for RMAP Read Reply
+  const uint8_t *tmpbuf = repbuf; 
+  size_t   replen = lp._caplen;
+  rmap_channel::remove_path_address(tmpbuf, replen);
+  rmapc.validate_reply(tmpbuf, replen, tmpbuf, outlen); // extract Service Data Unit (e.g. Space Packet) for RMAP Read Reply
   outbuf = (uint8_t *) tmpbuf;
   return 0;
  
@@ -102,7 +99,7 @@ fprintf(stderr,"\n");
   @param inpbuf [in]
   @param inplen [in]
 */
-int pcap_rmapw_send(class rmap_channel &rmapc, pcapnc &wp, pcapnc &lp, const uint8_t inpbuf[], size_t inplen){
+int pcap_rmapw_send(class rmap_channel &rmapc, pcapnc &wp, pcapnc *lpp, const uint8_t inpbuf[], size_t inplen){
 
   static uint8_t trans_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
   uint8_t *cmdbuf = trans_buf + PACKET_HEADER_SIZE;
@@ -115,23 +112,23 @@ int pcap_rmapw_send(class rmap_channel &rmapc, pcapnc &wp, pcapnc &lp, const uin
   ret = wp.write_packet_record(trans_buf, cmdlen); // 0:success or ERROR_LOG_FATAL.
   if ( ret != 0 ) return ERROR_RUN;
 
-  if ( use_rmap_reply ) {
+  if ( lpp != NULL ) {
     // reuse - trans_buf
-    uint8_t *const repbuf = trans_buf + PACKET_HEADER_SIZE; uint8_t *outbuf;
-    const uint8_t  replen = PACKET_HEADER_SIZE;             size_t   outlen;
-    pcap_rmap_read_and_extract_sdu(rmapc, lp, repbuf, replen, outbuf, outlen);
+    uint8_t *outbuf = trans_buf + PACKET_HEADER_SIZE;
+    size_t   outlen = PACKET_DATA_MAX_SIZE;
+    ret = pcap_rmap_read_and_extract_sdu(rmapc, *lpp, outbuf, outlen);
   }
-  return 0;
+  return ret;
 }
 
 /**
   @param rmapc      [ref]
   @param wp         [ref]
-  @param lp         [ref]
+  @param lpp        [ref] NULL or pointer to lp (reply pcapnc)
   @param outbuf     [in/out] outbuf .. outbuf + outlen
   @param outlen     [in/out] 0 .. outlen
 */
-int pcap_rmapr_recv(class rmap_channel &rmapc, pcapnc &wp, pcapnc &lp, uint8_t *&outbuf, size_t &outlen ){
+int pcap_rmapr_recv(class rmap_channel &rmapc, pcapnc &wp, pcapnc *lpp, uint8_t *&outbuf, size_t &outlen ){
 
   static uint8_t trans_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
   uint8_t *cmdbuf = trans_buf + PACKET_HEADER_SIZE;
@@ -139,21 +136,23 @@ int pcap_rmapr_recv(class rmap_channel &rmapc, pcapnc &wp, pcapnc &lp, uint8_t *
 
   // @ test-?????2?????-2*
   rmapc.generate_read_command(cmdbuf, cmdlen);
-  const int ret = wp.write_packet_record(trans_buf, cmdlen); // 0:success or ERROR_LOG_FATAL.
+  int ret = 
+  wp.write_packet_record(trans_buf, cmdlen); // 0:success or ERROR_LOG_FATAL.
   if ( ret != 0 ) return ERROR_RUN;
 
-  if ( use_rmap_reply ) {
-    // reuse - trans_buf
-    uint8_t *repbuf = outbuf;
-    size_t   replen = outlen;
-    pcap_rmap_read_and_extract_sdu(rmapc, lp, repbuf, replen, outbuf, outlen);
+  if ( lpp != NULL ) {
+    ret = pcap_rmap_read_and_extract_sdu(rmapc, *lpp, outbuf, outlen);
   }
 
-  return 0;
+  return ret;
 }
  
 int main(int argc, char *argv[])
 {
+  int use_rmap_channel = 0;
+  int use_rmap_reply   = 0;
+  int store_rmap_read  = 0;
+
   //// parse options
 
   pcapnc::init_class(argv[0]);
@@ -243,8 +242,9 @@ int main(int argc, char *argv[])
   const int w_ret = wp.write_nohead(stdout); // 0:success or ERROR_LOG_WARN.
   if ( w_ret != 0 ) return w_ret;
 
+  pcapnc *lpp = NULL;
   pcapnc lp(1, "reply");
-  if ( param_reply_filename != ""  ){
+  if ( use_rmap_reply ){
     // @ test-?????2?????-24-rmapr-rpl3
     const char *filename = param_reply_filename.c_str();
     const int r_ret = lp.read_nohead(filename); // 0:success, ERROR_PARAM, or ERROR_LOG_WARN.
@@ -252,10 +252,11 @@ int main(int argc, char *argv[])
       pcapnc_logerr(PROGNAME "file '%s' to receive reply could not be opend.\n",  filename);
       return ERROR_OPT;      
     }
+    lpp = &lp;
   }
 
   pcapnc sp(!param_original_time, "store_data");
-  if ( param_store_filename != ""  ){
+  if ( store_rmap_read ){
     // @ test-?????2?????-24-rmapr-rpl3
     const char *filename = param_store_filename.c_str();
     const uint8_t linktype = 0x94; // Assume SpacePacket
@@ -311,12 +312,25 @@ int main(int argc, char *argv[])
     size_t inplen = ip._caplen;
     if ( use_rmap_channel ) {
       if ( rmapc.is_write_channel() ){
-        ret = pcap_rmapw_send(rmapc, wp, lp, inpbuf, inplen);
+        ret = pcap_rmapw_send(rmapc, wp, lpp, inpbuf, inplen);
+        if ( ret <  0 ) { // end of input, withouog logging message
+          // handle option '--after wait_sec' @ test-?????2?????-{14,15,23,24}*
+          s3sim_sleep(param_after_wtime); 
+          return 0; 
+        }
+        if ( ret > 0 ) return ERROR_RUN;
       } else {
-        uint8_t  tmpbuf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
+        uint8_t  tmpbuf[PACKET_DATA_MAX_SIZE];
         uint8_t *outbuf = tmpbuf;
         size_t   outlen = sizeof(tmpbuf);
-        ret = pcap_rmapr_recv(rmapc, wp, lp, outbuf, outlen);
+        ret = pcap_rmapr_recv(rmapc, wp, lpp, outbuf, outlen);
+        if ( ret <  0 ) { // end of input, withouog logging message
+          // handle option '--after wait_sec' @ test-?????2?????-{14,15,23,24}*
+          s3sim_sleep(param_after_wtime); 
+          return 0; 
+        }
+        if ( ret > 0 ) return ERROR_RUN;
+
         if ( use_rmap_reply ) {
           if ( store_rmap_read ){
             ret = sp.write_packet(outbuf, outlen); // 0:success or ERROR_LOG_FATAL.
@@ -327,9 +341,13 @@ int main(int argc, char *argv[])
     } else {
       // @ test-?????2?????
       ret = pcap_ptp_send_record(wp, input_buf, inplen);
+      if ( ret <  0 ) { // end of input, withouog logging message
+        // handle option '--after wait_sec' @ test-?????2?????-{14,15,23,24}*
+       s3sim_sleep(param_after_wtime); 
+       return 0; 
+      }
+      if ( ret > 0 ) return ERROR_RUN;
     }
-    if ( ret != 0 ) return ERROR_RUN;
-
   }  
   return 0;
 }
