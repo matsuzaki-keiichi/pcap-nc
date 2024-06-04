@@ -8,8 +8,8 @@ mkdir -p outdir
 
 PCAPNC='../bin/pcap-nc'
 OPTSEND='--original-time --interval=0.001 --before=2'
-OPTSERV='-l 14800'
-OPTCLNT='127.0.0.1 14800 --no-stdin'
+OPTSERV='-l 12345'
+OPTCLNT='127.0.0.1 12345 --no-stdin'
 
 echo starting server
 $PCAPNC $OPTSERV $OPTSEND < test-spp.pcap &

@@ -26,6 +26,8 @@ Design Note:
 
 - Set size of the standard input/output to zero (at the initialization of each input/output).
 
+- To present a time in a scaler value, the type 'long double (=s3sim_time_t)' is required. Although 80 bits (intel type; significand 64bits) or 128 bits (IEEE quadruple-precision floating-point; significand 113bits) can preserve full information presented in a combination of coarse time (32bits) and nanoseconds (30bits), 64bits (IEEE double-precision floating-point; significand 52bits) can preserve time information only in the accuracy of microseconds.
+
 Naming Convention
 - xxxbuf, xxxlen       ... buffer and length of PCAP Packet Data
 - xxxxx_buf, xxxxx_len ... buffer and length of PCAP Packet Record
