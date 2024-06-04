@@ -9,10 +9,10 @@ pcap-nc: pcap-nc.bash
 pcap-store: pcap-store.bash
 	cp $< $@
 
-pcap-replay: pcap-replay.cc s3sim.c pcapnc.o rmap_channel.o
+pcap-replay: pcap-replay.cc s3sim.c pcapnc.o rmap_channel.o spw_on_eth_head.o
 	c++ -Wall -I rapidjson/include -o $@ $^ -lm
 
-pcap-rmap-target: pcap-rmap-target.cc s3sim.c pcapnc.o rmap_channel.o
+pcap-rmap-target: pcap-rmap-target.cc s3sim.c pcapnc.o rmap_channel.o spw_on_eth_head.o
 	c++ -Wall -I rapidjson/include -o $@ $^
 
 test-rmap: test-rmap.cc rmap_channel.o	
@@ -26,6 +26,9 @@ pcapnc.o: pcapnc.cc
 
 rmap_channel.o: rmap_channel.cc 	
 	c++ -I rapidjson/include -c $^
+
+spw_on_eth_head.o: spw_on_eth_head.cc
+	c++ -c $^
 
 head-diosatlm.pcap:	write_head
 	./write_head 147 >$@

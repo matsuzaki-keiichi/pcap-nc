@@ -131,6 +131,9 @@ do
 	    fi
 	    SLEEP=$OPT
 	    ;;
+	--no-spw-on-eth)
+	    args_replay="$args_replay --no-spw-on-eth"
+		;;
 	*)
 	    # pass all other arguments to nc
 	    args_nc="$args_nc $1"

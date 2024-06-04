@@ -1,5 +1,6 @@
 #include <getopt.h>
 #include <string>
+#include <string.h>
 #include <stdlib.h>
 // atof
 
@@ -14,6 +15,7 @@
 #include "rmap_channel.h"
 #include "pcapnc.h"
 #include "s3sim.h"
+#include "spw_on_eth_head.h"
 
 // #define DEBUG
 
@@ -31,6 +33,8 @@ static std::string param_channel        =  "";
 static std::string param_reply_filename =  ""; 
 static std::string param_store_filename =  ""; 
 static int         param_original_time  =  0;
+static int         param_no_spw_on_eth  =  0;
+
 
 #define OPTSTRING ""
 
@@ -43,6 +47,7 @@ static struct option long_options[] = {
   {"original-time",       no_argument, NULL, 'o'},
   {"receive-reply", required_argument, NULL, 'r'},
   {"store-data",    required_argument, NULL, 't'},
+  {"no-spw-on-eth",       no_argument, NULL, 's'},
   { NULL,                           0, NULL,  0 }
 };
 
@@ -84,6 +89,10 @@ int pcap_rmap_read_and_extract_sdu(class rmap_channel &rmapc, pcapnc &lp, uint8_
   // simulate network
   const uint8_t *tmpbuf = repbuf; 
   size_t   replen = lp._caplen;
+  if (!param_no_spw_on_eth) {
+    int ret = spw_on_eth_head::validate_remove_spw_on_eth_header(tmpbuf, replen);
+    if ( ret != 0 ) return ERROR_RUN;     
+  }
   rmap_channel::remove_path_address(tmpbuf, replen);
   rmapc.validate_reply(tmpbuf, replen, tmpbuf, outlen); // extract Service Data Unit (e.g. Space Packet) for RMAP Read Reply
   outbuf = (/*non const*/ uint8_t *) tmpbuf;
@@ -108,13 +117,17 @@ fprintf(stderr,"\n");
 */
 int pcap_rmapw_send(class rmap_channel &rmapc, pcapnc &wp, pcapnc *lpp, const uint8_t inpbuf[], size_t inplen){
 
-  static uint8_t trans_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
+  static uint8_t trans_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE+SPW_ON_ETH_HEAD_SIZE];
   uint8_t *const cmdbuf = trans_buf + PACKET_HEADER_SIZE;
   size_t         cmdlen = PACKET_DATA_MAX_SIZE;
 
   int ret =
   rmapc.generate_write_command(inpbuf, inplen, cmdbuf, cmdlen); // 0:success or ERROR_LOG_FATAL.
   if ( ret != 0 ) return ERROR_RUN;      
+
+  if (!param_no_spw_on_eth) {
+    spw_on_eth_head::insert_spw_on_eth_header(cmdbuf, cmdlen);
+  }
 
   ret = wp.write_packet_record(trans_buf, cmdlen); // 0:success or ERROR_LOG_FATAL.
   if ( ret != 0 ) return ERROR_RUN;
@@ -128,6 +141,7 @@ int pcap_rmapw_send(class rmap_channel &rmapc, pcapnc &wp, pcapnc *lpp, const ui
   return ret;
 }
 
+
 /**
   @param rmapc      [ref]
   @param wp         [ref]
@@ -137,12 +151,17 @@ int pcap_rmapw_send(class rmap_channel &rmapc, pcapnc &wp, pcapnc *lpp, const ui
 */
 int pcap_rmapr_recv(class rmap_channel &rmapc, pcapnc &wp, pcapnc *lpp, uint8_t *&outbuf, size_t &outlen ){
 
-  static uint8_t trans_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
+  static uint8_t trans_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE+SPW_ON_ETH_HEAD_SIZE];
   uint8_t *const cmdbuf = trans_buf + PACKET_HEADER_SIZE;
   size_t         cmdlen = PACKET_DATA_MAX_SIZE;
 
   // @ test-?????2?????-2*
   rmapc.generate_read_command(cmdbuf, cmdlen);
+
+  if (!param_no_spw_on_eth) {
+    spw_on_eth_head::insert_spw_on_eth_header(cmdbuf, cmdlen);
+  }
+  
   int ret = 
   wp.write_packet_record(trans_buf, cmdlen); // 0:success or ERROR_LOG_FATAL.
   if ( ret != 0 ) return ERROR_RUN;
@@ -180,6 +199,7 @@ int main(int argc, char *argv[])
     case 'o': param_original_time         =           1;  break;
     case 'r': param_reply_filename = std::string(optarg); break;
     case 't': param_store_filename = std::string(optarg); break;
+    case 's': param_no_spw_on_eth         =           1;  break;
     default:  option_error                =           1;  break;
     }
   }

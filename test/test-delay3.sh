@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+
+#
+# Delay test 3.
+#
+# client to server RMAP Read with delay
+#
+
+#                      client         network         server
+# xxx/PCAP =>     RMAPRD/PCAP =>     {RMAPRD/PCAP} => RMAPRD/PCAP
+#                                                   + SPP/PCAP
+#             SPP/RMAPRR/PCAP <= {SPP/RMAPRR/PCAP} <= SPP/RMAPRR/PCAP
+
+mkdir -p outdir
+
+CHAN='--config=sample.json --channel=channel3' # RMAP Read Channel
+
+PCAPNC=../bin/pcap-nc
+NC='stdbuf -i 0 -o 0 nc -w 10'
+OPTSEND='--original-time --interval=0.001'
+OPTSERV='-l 12345'
+OPTCLNT='127.0.0.1 12345 --sleep=1'
+
+echo starting client
+$PCAPNC $OPTCLNT $OPTSEND $CHAN < test-spp.pcap --after=1.0 --link-type=spw >outdir/test-rmapr-rpl-out-delay.pcap &
+
+echo starting server
+FIFO=/tmp/pcap-fifo
+mkfifo $FIFO
+$NC $OPTSERV <$FIFO | ../bin/pcap-rmap-target $CHAN --delay=1.5 --send-data=test-spp.pcap >$FIFO
+rm $FIFO
