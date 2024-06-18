@@ -204,7 +204,7 @@ int main(int argc, char *argv[])
   const char* channel_str = param_channel.c_str();
   int ret = rmapc.read_json(config_str, channel_str);
   if ( ret != 0 ){
-    if        ( ret == rmap_channel::NOFILE ){
+    if        ( ret == rmap_channel::ERROR_NOFILE ){
       pcapnc_logerr(PROGNAME "configuration file '%s' is not found\n", config_str);
     } else if ( ret == rmap_channel::JSON_ERROR ){
       pcapnc_logerr(PROGNAME "parse error in configuration file '%s'\n", config_str);

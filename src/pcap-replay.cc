@@ -214,7 +214,7 @@ int main(int argc, char *argv[])
     } 
     int ret = rmapc.read_json(param_config.c_str(), param_channel.c_str());
     if ( ret != 0 ){
-      if        ( ret == rmap_channel::NOFILE ){
+      if        ( ret == rmap_channel::ERROR_NOFILE ){
         pcapnc_logerr(PROGNAME "configuration file '%s' is not found\n", param_config.c_str());
         // @ test-pcap-replay-options3
       } else if ( ret == rmap_channel::JSON_ERROR ){

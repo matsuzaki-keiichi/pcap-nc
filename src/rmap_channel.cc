@@ -123,7 +123,7 @@ int rmap_channel::read_json(const char *file_name, const char *channel_name)
     std::ifstream ifs(file_name);
     if ( !ifs.is_open() )
     {
-        return rmap_channel::NOFILE;
+        return rmap_channel::ERROR_NOFILE;
     }
 
     rapidjson::IStreamWrapper isw(ifs);
@@ -169,14 +169,16 @@ int rmap_channel::read_json(const char *file_name, const char *channel_name)
 
         status = 0;
 
-#ifdef DEBUG
-        std::cout << "destination_path_address:    " << channel["destination_path_address"]    .GetString() << std::endl;
+// #ifdef DEBUG
+        std::cout << "read json channel :          " << channel["name"]                        .GetString() << std::endl;
+        std::cout << "desctiprion:                 " << channel["description"]                 .GetString() << std::endl;
+
         std::cout << "destination_logical_address: " << channel["destination_logical_address"] .GetString() << std::endl;
         std::cout << "destination_key:             " << channel["destination_key"]             .GetString() << std::endl;
         std::cout << "source_path_address:         " << channel["source_path_address"]         .GetString() << std::endl;
         std::cout << "source_logical_address:      " << channel["source_logical_address"]      .GetString() << std::endl;
         std::cout << "memory_address:              " << channel["memory_address"]              .GetString() << std::endl;
-#endif    
+// #endif    
     }
 
     return status;
