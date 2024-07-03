@@ -12,7 +12,7 @@ class rmap_channel {
   public:
     rmap_channel();
 
-    enum {NOFILE=1, JSON_ERROR=2, NOCHANNEL=3};
+    enum {ERROR_NOFILE=1, JSON_ERROR=2, NOCHANNEL=3};
 
     int read_json(const char *file_name, const char *channel_name);
 
