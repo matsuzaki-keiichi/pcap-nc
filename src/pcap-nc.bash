@@ -134,6 +134,22 @@ do
 	--no-spw-on-eth)
 	    args_replay="$args_replay --no-spw-on-eth"
 		;;
+	
+	--read-repeated)
+	    args_replay="$args_replay --read-repeated"
+		;;
+	--num-packet |                   --num-packet=*)
+	    if [[ "$1" =~             ^--num-packet= ]]; then
+		OPT=$(echo $1 | sed -e 's/^--num-packet=//')
+	    elif [[ -z "$2" ]] || [[ "$2" =~ ^-+ ]]; then
+		echo              "'option --num-packet' requires an argument." 1>&2
+		exit 1
+	    else
+		OPT="$2"
+		shift
+	    fi
+	    args_replay="$args_replay --num-packet=$OPT"
+	    ;;
 	*)
 	    # pass all other arguments to nc
 	    args_nc="$args_nc $1"

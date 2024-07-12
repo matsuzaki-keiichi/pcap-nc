@@ -2,6 +2,7 @@
 #include <string>
 #include <string.h>
 #include <stdlib.h>
+#include <stdexcept>
 // atof
 
 #include <stdio.h>
@@ -34,6 +35,8 @@ static std::string param_reply_filename =  "";
 static std::string param_store_filename =  ""; 
 static int         param_original_time  =  0;
 static int         param_no_spw_on_eth  =  0;
+static int         param_read_repeated  =  0;
+static long double param_num_packet     =  0;
 
 
 #define OPTSTRING ""
@@ -48,6 +51,8 @@ static struct option long_options[] = {
   {"receive-reply", required_argument, NULL, 'r'},
   {"store-data",    required_argument, NULL, 't'},
   {"no-spw-on-eth",       no_argument, NULL, 's'},
+  {"read-repeated",       no_argument, NULL, 'e'},
+  {"num-packet",    optional_argument, NULL, 'm'},
   { NULL,                           0, NULL,  0 }
 };
 
@@ -161,11 +166,10 @@ int pcap_rmapr_recv(class rmap_channel &rmapc, pcapnc &wp, pcapnc *lpp, uint8_t 
   if (!param_no_spw_on_eth) {
     spw_on_eth_head::insert_spw_on_eth_header(cmdbuf, cmdlen);
   }
-  
+
   int ret = 
   wp.write_packet_record(trans_buf, cmdlen); // 0:success or ERROR_LOG_FATAL.
   if ( ret != 0 ) return ERROR_RUN;
-
   if ( lpp != NULL ) {
     ret = pcap_rmap_read_and_extract_sdu(rmapc, *lpp, outbuf, outlen);
   }
@@ -200,6 +204,23 @@ int main(int argc, char *argv[])
     case 'r': param_reply_filename = std::string(optarg); break;
     case 't': param_store_filename = std::string(optarg); break;
     case 's': param_no_spw_on_eth         =           1;  break;
+    case 'e': param_read_repeated         =           1;  break;
+    case 'm': 
+            if (strcmp(optarg, "")) {
+              try {
+                param_num_packet = std::stold(optarg);
+              }catch ( const std::invalid_argument& e ) {
+                pcapnc_logerr(PROGNAME "option '--num-packet' is invalid_argument '%s'.\n", optarg );
+                return ERROR_OPT;
+              }catch ( const std::out_of_range& e ) {
+                pcapnc_logerr(PROGNAME "option '--num-packet' is out_of_range '%s'.\n", optarg );
+                return ERROR_OPT;
+              }
+              if (param_num_packet < 0) param_num_packet = 1;
+            } else {
+              param_num_packet = -1; 
+            }
+            break;
     default:  option_error                =           1;  break;
     }
   }
@@ -214,7 +235,7 @@ int main(int argc, char *argv[])
     } 
     int ret = rmapc.read_json(param_config.c_str(), param_channel.c_str());
     if ( ret != 0 ){
-      if        ( ret == rmap_channel::ERROR_NOFILE ){
+      if        ( ret == rmap_channel::NOFILE ){
         pcapnc_logerr(PROGNAME "configuration file '%s' is not found\n", param_config.c_str());
         // @ test-pcap-replay-options3
       } else if ( ret == rmap_channel::JSON_ERROR ){
@@ -260,10 +281,24 @@ int main(int argc, char *argv[])
   }
 
   ////
-
+  if (!isatty(STDIN_FILENO) && param_read_repeated == 1) {
+    pcapnc_logerr(PROGNAME "option '--read-repeated' cannot be used with stdin\n");
+    return ERROR_OPT;  
+  }
+  if (param_read_repeated == 0 && param_num_packet == 1) {
+    pcapnc_logerr(PROGNAME "option '--num-packet' must be used with '--read-repeated'\n");
+    return ERROR_OPT;  
+  }
+  if (param_read_repeated == 1 && param_original_time == 1) {
+    pcapnc_logerr(PROGNAME "option '--read-repeated' cannot be used with '--original-time'\n");
+    return ERROR_OPT;  
+  }
   pcapnc ip(1, "file");
-  const int i_ret = ip.read_head(stdin); // 0:success, or ERROR LOG_FATAL.
-  if ( i_ret != 0 ) return i_ret;
+  if (param_num_packet == 0){
+    const int i_ret = ip.read_head(stdin); // 0:success, or ERROR LOG_FATAL.
+    if ( i_ret != 0 ) return i_ret;
+  }
+  
 
   pcapnc wp(!param_original_time, "output");
   const int w_ret = wp.write_nohead(stdout); // 0:success or ERROR_LOG_WARN.
@@ -297,21 +332,24 @@ int main(int argc, char *argv[])
   ////
 
   double prev_time = -1;
-  
+  int count = 0;
   while(1){
     static uint8_t input_buf[PACKET_HEADER_SIZE+PACKET_DATA_MAX_SIZE];
     uint8_t *const inpbuf = input_buf + PACKET_HEADER_SIZE;
 
     int ret;
-    ret = ip.read_packet(inpbuf, PACKET_DATA_MAX_SIZE); // 0:success, -1:end of input, or ERROR_LOG_FATAL
-    if ( ret <  0 ) { // end of input, withouog logging message
-      // handle option '--after wait_sec' @ test-?????2?????-{14,15,23,24}*
-      s3sim_sleep(param_after_wtime); 
-      return 0; 
+    if (param_num_packet == 0){
+      ret = ip.read_packet(inpbuf, PACKET_DATA_MAX_SIZE); // 0:success, -1:end of input, or ERROR_LOG_FATAL
+      if ( ret <  0 ) { // end of input, withouog logging message
+        // handle option '--after wait_sec' @ test-?????2?????-{14,15,23,24}*
+        s3sim_sleep(param_after_wtime); 
+        return 0; 
+      }
+      if ( ret >  0 ) return ERROR_RUN;
     }
-    if ( ret >  0 ) return ERROR_RUN;
+    
 
-    //// time handling 
+    // time handling 
 
     double curr_time = ip._coarse_time + ip._nanosec * 1e-9;
     if ( prev_time < 0 ) {
@@ -364,6 +402,12 @@ int main(int argc, char *argv[])
             if ( ret != 0 ) return ERROR_RUN;
           }
         }
+        if (param_num_packet > 0) {
+          count++;
+          if (count >= param_num_packet){
+            break;
+          }
+        }        
       }      
     } else {
       // @ test-?????2?????

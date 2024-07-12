@@ -82,8 +82,15 @@ Arguments:
   receive reply in the PCAP format from the input and check the reply
 --store-data output(path): (optional; only for RMAP read channel, requires --receive-reply option)
   store user data collected by RMAP Read Transactions in the PCAP format
---no-spw-on-eth
+--no-spw-on-eth: (optional)
   omit the header for spw-on-eth.
+--read-repeated: (optional)
+  specifies to transmit read commands internally. 
+  This parameter disables input from stdin and cannot be used with '--original-time'.
+--num-packet (number(double)): (optional)
+  specifies the number of transmitted packets for read-repeated. 
+  This parameter must be used with '--read-repeated'.
+  Unless this parameter is specified, pcap-replay transmits read commands indefinitely.
 Input:
 PCAP file
 Note: Input is dummy (i.e. only time is used) for a RMAP Read channel. 
@@ -104,12 +111,24 @@ Arguments:
   name of a configuration file
 --send-data output(path): (optional; only for RMAP Read channel)
   input data for a RMAP Read Channel in the PCAP file format
+  If this parameter is not specified, it branches to the processing of the write command.(memo: TODO JAXA)
 --store-data output(path): (optional; only for RMAP Write channel)
   store user data collected by RMAP Write Transactions in the PCAP format
 --no-spw-on-eth
   omit the header for spw-on-eth.
 --delay
   delays the time information given to the reply packet by the specified number of seconds.
+--shared-memory=key:key_name,RemoteBufferAddress:address(in hex)#RemoteBufferSize:size(in dec),DeviceRegisterAddress:address(in hex)
+  key_name: the name of a shared memory key (e.g., TEB)
+  RemoteBufferAddress: the Remote Buffer Address of a shared memory (e.g., 0x89ABCDEF)
+  RemoteBufferSize: the size of a shared memory (e.g., 2048)
+  DeviceRegisterAddress: the address used to store flags, write addresses, and the lengths of writes. (e.g., 0x00000000)
+  The size of the DeviceRegister is specified in the header file.(shared_mem.h)
+  This parameter cannot be used with '--send-data'.(RMAP Read channel)
+  This parameter has no restrictions on use with '--store-data'.(RMAP Write channel)
+
+
+
 Input:
 RMAP Command Packets in PCAP Packet Records.
 Output:
@@ -138,6 +157,8 @@ Retval:
 │   ├── rmap_channel.h
 │   ├── s3sim.c
 │   ├── s3sim.h
+│   ├── shared_mem.cc
+│   ├── shared_mem.h
 │   ├── spw_on_eth_head.cc   # handle spacewire on ethernet
 │   ├── spw_on_eth_head.h    # handle spacewire on ethernet
 │   ├── test-rmap.cc
@@ -154,6 +175,13 @@ Retval:
     │   ├── test-pcap-replay-options7.log
     │   ├── test-pcap-replay-options8.log
     │   ├── test-pcap-replay-options9.log
+    │   ├── test-pcap-replay-readrepeated1.log
+    │   ├── test-pcap-replay-readrepeated2.log
+    │   ├── test-pcap-replay-readrepeated3.log
+    │   ├── test-pcap-replay-readrepeated4.log
+    │   ├── test-pcap-replay-readrepeated5.log
+    │   ├── test-pcap-rmap-target-delay1.log
+    │   ├── test-pcap-rmap-target-delay2.log
     │   ├── test-pcap-rmap-target-options1.log
     │   ├── test-pcap-rmap-target-options2.log
     │   ├── test-pcap-rmap-target-options3.log
@@ -165,14 +193,27 @@ Retval:
     │   ├── test-pcap-rmap-target-options9.log
     │   ├── test-rmapr-out-nospw.pcap
     │   ├── test-rmapr-out.pcap
+    │   ├── test-rmapr-rpl-out-delay.pcap
     │   ├── test-rmapr-rpl-out-nospw.pcap
+    │   ├── test-rmapr-rpl-out-num-packet.pcap
     │   ├── test-rmapr-rpl-out.pcap
+    │   ├── test-rmapr-rpl-out-shm.pcap
+    │   ├── test-rmap-target-shm1.log
+    │   ├── test-rmap-target-shm2.log
+    │   ├── test-rmap-target-shm3.log
+    │   ├── test-rmap-target-shm4.log
+    │   ├── test-rmap-target-shm5.log
+    │   ├── test-rmap-target-shm6.log
+    │   ├── test-rmap-target-shm7.log
     │   ├── test-rmapw-spp-out-nospw.pcap
     │   ├── test-rmapw-spp-out.pcap
+    │   ├── test-rpl-out-delay.pcap
     │   ├── test-rpl-out-nospw.pcap
     │   ├── test-rpl-out.pcap
     │   └── test-spp-out.pcap
+    ├── head-spw.pcap
     ├── sample.json
+    ├── spw.pcap
     ├── test1a-client.sh
     ├── test1b-client.sh
     ├── test1c-client.sh
@@ -201,9 +242,18 @@ Retval:
     ├── test-client2server-23-rmapr-rpl2.sh
     ├── test-client2server-24-rmapr-rpl3_nospw.sh
     ├── test-client2server-24-rmapr-rpl3.sh
+    ├── test-client2server-30-rmapw-rpl3.sh
     ├── test-client2server.sh
+    ├── test-delay3.sh
+    ├── test-delay4.sh
+    ├── test-delay5.sh
+    ├── test-delay6.sh
+    ├── test-delay-all.sh
     ├── test-pcap-replay-options.sh
     ├── test-pcap-rmap-target-options.sh
+    ├── test-read-repeated-all.sh
+    ├── test-read-repeated-inf.sh
+    ├── test-read-repeated.sh
     ├── test-server2client-11-rmapw_nospw.sh
     ├── test-server2client-11-rmapw.sh
     ├── test-server2client-12-rmapw-spp_nospw.sh
@@ -222,7 +272,18 @@ Retval:
     ├── test-server2client-23-rmapr-rpl2.sh
     ├── test-server2client-24-rmapr-rpl3_nospw.sh
     ├── test-server2client-24-rmapr-rpl3.sh
+    ├── test-server2client-30-rmapw-rpl3.sh
     ├── test-server2client.sh
+    ├── test-shm1-1.sh
+    ├── test-shm1-2.sh
+    ├── test-shm1-3.sh
+    ├── test-shm1-4.sh
+    ├── test-shm1-5.sh
+    ├── test-shm1-6.sh
+    ├── test-shm1-7.sh
+    ├── test-shm2-1.sh
+    ├── test-shm2-2.sh
+    ├── test-shm-all.sh
     └── test-spp.pcap
 
 end of file

@@ -1,0 +1,1 @@
+pcap-replay: option '--num-packet' must be used with '--read-repeated'
