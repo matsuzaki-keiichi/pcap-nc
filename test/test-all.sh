@@ -145,4 +145,20 @@ if [ $? -ne 0 ]; then
   exit
 fi
 
+# case read repeated of pcap-replay
+echo ./test-read-repeated-all.sh
+./test-read-repeated-all.sh
+if [ $? -ne 0 ]; then  
+  echo test failed
+  exit
+fi
+
+# case shared memory of pcap-rmap-target
+echo ./test-shm-all.sh
+./test-shm-all.sh
+if [ $? -ne 0 ]; then  
+  echo test failed
+  exit
+fi
+
 echo all test succeeded

@@ -9,6 +9,11 @@
 #include <stdexcept>
 #include <iostream>
 #include <chrono>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <sstream>
+#include <vector>
+
 
 // PRIx32
 
@@ -16,11 +21,13 @@
 #include "pcapnc.h"
 #include "spw_on_eth_head.h"
 #include "s3sim.h"
+#include "shared_mem.h"
 
 static int store_rmap_write = 0;
 static int use_rmaprd_rpl   = 0;
 static s3sim_time_t rmap_target_delay_s = 0.0;
 static bool rmap_target_is_delay_set = false;
+
 
 static std::string param_config         = ""; 
 static std::string param_channel        = ""; 
@@ -28,19 +35,21 @@ static std::string param_send_filename  = "";
 static std::string param_store_filename = ""; 
 static int         param_no_spw_on_eth  =  0;
 static std::string param_delay          = "";
+static std::string param_shared_mem     = "";
 
 
 
 #define OPTSTRING ""
 
 static struct option long_options[] = {
-  {"config",     required_argument, NULL, 'c'},
-  {"channel",    required_argument, NULL, 'n'},
-  {"send-data",  required_argument, NULL, 's'},
-  {"store-data", required_argument, NULL, 't'},
-  {"no-spw-on-eth",    no_argument, NULL, 'e'},
-  {"delay",      required_argument, NULL, 'd'},
-  { NULL,        0,                 NULL,  0 }
+  {"config",        required_argument, NULL, 'c'},
+  {"channel",       required_argument, NULL, 'n'},
+  {"send-data",     required_argument, NULL, 's'},
+  {"store-data",    required_argument, NULL, 't'},
+  {"no-spw-on-eth",       no_argument, NULL, 'e'},
+  {"delay",         required_argument, NULL, 'd'},
+  {"shared-memory", required_argument, NULL, 'm'},
+  { NULL,           0,                 NULL,  0 }
 };
 
 #define PROGNAME "pcap-rmap-target: "
@@ -71,7 +80,7 @@ int pcap_rmapr_send(class rmap_channel &rmapc, pcapnc &ip, pcapnc &op, const uin
   size_t         cmdlen = sizeof(cmdbuf);
   ret = ip.read_packet(cmdbuf, cmdlen); // 0:success, -1:end of input, or ERROR_LOG_FATAL 
   if ( ret < 0 ) return -1; // end of input, withouog logging message
-  if ( ret > 0 ) return ERROR_RUN; 
+  if ( ret > 0 ) return ERROR_RUN;
 
   // simulate network
   const uint8_t *rcvbuf = cmdbuf;
@@ -88,11 +97,43 @@ int pcap_rmapr_send(class rmap_channel &rmapc, pcapnc &ip, pcapnc &op, const uin
   // add delay to simulation time
   delay_add(rmap_target_delay_s, rmap_target_is_delay_set);
 
-  // generate RMAP READ Reply
-  ret = 
-  rmapc.generate_read_reply(inpbuf, inplen, rcvbuf, rcvlen, rplbuf, rpllen); // 0:success or ERROR_LOG_FATAL.
-  if ( ret != 0 ) return ERROR_RUN;   
 
+  int keyShm = 0;
+  int keyFlag = 0;
+  shared_mem::ValidateOutputs outputs;
+  if (param_shared_mem != "") {
+    int ret = shared_mem::validate_option(param_shared_mem.c_str(), outputs);
+    if (ret == 0) { 
+      for (size_t i = 0; i < strlen(outputs.key_mem); ++i) {
+          keyShm += (int) outputs.key_mem[i];
+      }
+      for (size_t i = 0; i < strlen(outputs.key_reg); ++i) {
+          keyFlag += (int) outputs.key_reg[i];
+      }
+    } else {
+      return ERROR_OPT;
+    }
+    
+    shared_mem rmapMem(keyShm, outputs.length_mem);
+    size_t tmplen;
+    uint32_t target_address;
+    rmapMem.validate_read_command(rcvbuf, target_address, tmplen);
+    uint8_t tmpbuf[tmplen]; 
+    ret = rmapMem.read_rmap_mem(tmpbuf,tmplen,target_address, outputs);
+    if ( ret != 0 ) {
+      return ERROR_RUN;
+    }  
+    inpbuf = tmpbuf;
+    inplen = tmplen;
+    
+    ret = rmapc.generate_read_reply(inpbuf, inplen, rcvbuf, rcvlen, rplbuf, rpllen); // 0:success or ERROR_LOG_FATAL.
+    if ( ret != 0 ) return ERROR_RUN;   
+  }else{
+    // generate RMAP READ Reply
+    ret = rmapc.generate_read_reply(inpbuf, inplen, rcvbuf, rcvlen, rplbuf, rpllen); // 0:success or ERROR_LOG_FATAL.
+    if ( ret != 0 ) return ERROR_RUN; 
+  }
+  
   if (!param_no_spw_on_eth) {
     spw_on_eth_head::insert_spw_on_eth_header(rplbuf, rpllen);
   }
@@ -145,6 +186,38 @@ int pcap_rmapw_recv(class rmap_channel &rmapc, pcapnc &ip, pcapnc &op, uint8_t *
   rmapc.validate_command(rcvbuf, rcvlen, tmpbuf, outlen); // extract Service Data Unit (e.g. Space Packet)
   outbuf = (/*non const*/ uint8_t *) tmpbuf;
 
+
+  int keyShm = 0;
+  int keyFlag = 0;
+  shared_mem::ValidateOutputs outputs;
+  if (param_shared_mem != "") {
+    int ret = shared_mem::validate_option(param_shared_mem.c_str(), outputs);
+    if (ret == 0) { 
+      for (size_t i = 0; i < strlen(outputs.key_mem); ++i) {
+          keyShm += (int) outputs.key_mem[i];
+      }
+      for (size_t i = 0; i < strlen(outputs.key_reg); ++i) {
+          keyFlag += (int) outputs.key_reg[i];
+      }
+    } else {
+      return ERROR_OPT;
+    }
+
+    // write mem
+    shared_mem flagMem(keyFlag, outputs.length_reg);
+    shared_mem rmapMem(keyShm, outputs.length_mem);
+  
+    ret = rmapMem.write_rmap_mem(outbuf, outlen, rcvbuf, outputs);  
+    if ( ret !=  0 ) {
+      return -1;
+    } 
+    ret = flagMem.write_flag_mem(outbuf, outlen, rcvbuf, outputs);
+    if ( ret !=  0 ) {
+      return -1;
+    }
+  }
+  
+
   return 0;
 }
 
@@ -171,6 +244,7 @@ int main(int argc, char *argv[])
     case 't': param_store_filename = std::string(optarg); break;
     case 'e': param_no_spw_on_eth  = 1;                   break;
     case 'd': param_delay          = std::string(optarg); break;
+    case 'm': param_shared_mem     = std::string(optarg); break;
     default: option_error=1; break;
     }
   }
@@ -199,12 +273,14 @@ int main(int argc, char *argv[])
     }
   }
 
+
+
   class rmap_channel rmapc;
   const char* config_str  = param_config.c_str();
   const char* channel_str = param_channel.c_str();
   int ret = rmapc.read_json(config_str, channel_str);
   if ( ret != 0 ){
-    if        ( ret == rmap_channel::ERROR_NOFILE ){
+    if        ( ret == rmap_channel::NOFILE ){
       pcapnc_logerr(PROGNAME "configuration file '%s' is not found\n", config_str);
     } else if ( ret == rmap_channel::JSON_ERROR ){
       pcapnc_logerr(PROGNAME "parse error in configuration file '%s'\n", config_str);
@@ -252,21 +328,44 @@ int main(int argc, char *argv[])
   pcapnc op(0, "output"); const int o_ret = op.write_nohead(stdout); // 0:success or ERROR_LOG_WARN.
   if ( o_ret != 0 ) return ERROR_OPT;
 
-  ////
+  //// read packet & check write or reply
+  if (param_shared_mem != "") {
+    static uint8_t tmpbuf[PACKET_DATA_MAX_SIZE];
+    ret = ip.read_packet(tmpbuf, sizeof(tmpbuf));
+    if ( ret <  0 ) return 0; // end of input, withouog logging message
+    if ( ret >  0 ) return ERROR_RUN; 
+    const uint8_t *tempbuf = tmpbuf;
+    size_t tmplen = ip._caplen;
+    if (!param_no_spw_on_eth) {
+      ret = spw_on_eth_head::validate_remove_spw_on_eth_header(tempbuf, tmplen);
+      if ( ret != 0 ) return ERROR_RUN;     
+    }
+    rmap_channel::remove_path_address(tempbuf, tmplen);
+    uint8_t third_bit = (tempbuf[2] >> 5) & 0x01;
+    if ( third_bit == 0 ){
+      use_rmaprd_rpl = 1;
+    }
+  }
 
 
   while(1){
     ssize_t ret;
     static uint8_t inpbuf[PACKET_DATA_MAX_SIZE];
     if ( use_rmaprd_rpl ) {
-      // generate RMAP READ Reply
-      ret = lp.read_packet(inpbuf, sizeof(inpbuf)); // 0:success, -1:end of input, or ERROR_LOG_FATAL
-      if ( ret <  0 ) return 0; // end of input, withouog logging message
-      if ( ret >  0 ) return ERROR_RUN; 
-      const size_t inplen = lp._caplen;
-      int ret = pcap_rmapr_send(rmapc, ip, op, inpbuf, inplen);
-      if ( ret <  0 ) return 0; // end of input, withouog logging message
-      if ( ret >  0 ) return ERROR_RUN; 
+      if (param_shared_mem == "") {
+        // generate RMAP READ Reply
+        ret = lp.read_packet(inpbuf, sizeof(inpbuf)); // 0:success, -1:end of input, or ERROR_LOG_FATAL
+        if ( ret <  0 ) return 0; // end of input, withouog logging message
+        if ( ret >  0 ) return ERROR_RUN;
+        const size_t inplen = lp._caplen;
+        int ret = pcap_rmapr_send(rmapc, ip, op, inpbuf, inplen);
+        if ( ret <  0 ) return 0; // end of input, withouog logging message
+        if ( ret >  0 ) return ERROR_RUN; 
+      }else{
+        int ret = pcap_rmapr_send(rmapc, ip, op, inpbuf, sizeof(inpbuf));
+        if ( ret <  0 ) return 0; // end of input, withouog logging message
+        if ( ret >  0 ) return ERROR_RUN; 
+      }
     } else {
       // not only rmap_write_channel but also rmap_read_channel may here ... 
       uint8_t *outbuf = inpbuf; 

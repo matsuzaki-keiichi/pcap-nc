@@ -1,5 +1,5 @@
 ALL=pcap-nc pcap-store pcap-replay head-diosatlm.pcap head-spp.pcap head-spw.pcap pcap-rmap-target
-MED=write_head test-rmap pcapnc.o rmap_channel.o
+MED=write_head test-rmap pcapnc.o rmap_channel.o 
 
 all: ${ALL} ${MED}
 
@@ -9,13 +9,13 @@ pcap-nc: pcap-nc.bash
 pcap-store: pcap-store.bash
 	cp $< $@
 
-pcap-replay: pcap-replay.cc s3sim.c pcapnc.o rmap_channel.o spw_on_eth_head.o
+pcap-replay: pcap-replay.cc s3sim.c pcapnc.o rmap_channel.o spw_on_eth_head.o 
 	c++ -Wall -I rapidjson/include -o $@ $^ -lm
 
-pcap-rmap-target: pcap-rmap-target.cc s3sim.c pcapnc.o rmap_channel.o spw_on_eth_head.o
+pcap-rmap-target: pcap-rmap-target.cc s3sim.c pcapnc.o rmap_channel.o spw_on_eth_head.o shared_mem.o
 	c++ -Wall -I rapidjson/include -o $@ $^
 
-test-rmap: test-rmap.cc rmap_channel.o	
+test-rmap: test-rmap.cc rmap_channel.o 
 	c++ -I rapidjson/include -o $@ $^
 
 write_head: write_head.c
@@ -24,10 +24,13 @@ write_head: write_head.c
 pcapnc.o: pcapnc.cc 	
 	c++ -c $^
 
-rmap_channel.o: rmap_channel.cc 	
+rmap_channel.o: rmap_channel.cc 
 	c++ -I rapidjson/include -c $^
 
 spw_on_eth_head.o: spw_on_eth_head.cc
+	c++ -c $^
+
+shared_mem.o: shared_mem.cc
 	c++ -c $^
 
 head-diosatlm.pcap:	write_head
